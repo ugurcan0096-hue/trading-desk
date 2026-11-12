@@ -234,7 +234,7 @@
   function verdictLabel(v) {
     if (v === "pass") return "bestanden";
     if (v === "kill") return "abgelehnt";
-    if (v === "wait") return "wartet";
+    if (v === "wait" || v === "recheck") return "Wartet";
     return v || "";
   }
   function liqLabel(n) {
@@ -376,7 +376,7 @@
         <div class="kv"><span class="k">Adresse</span><span class="v mint-s">${esc(s.wallet_pubkey || "—")}</span></div>
         <div class="kv"><span class="k">AUTO-Stop</span><span class="v">${esc(stop && String(stop).trim() ? stopLine : "keiner geplant")}</span></div>
         <div class="kv"><span class="k">Paper-Stack</span><span class="v">${a.stack != null ? moneyUSD(a.stack) : "—"}</span></div>
-        <div class="kv"><span class="k">Min. Liquidität</span><span class="v">40.000 $</span></div>
+        <div class="kv"><span class="k">Min. Liquidität</span><span class="v">${(s.min_liquidity_usd||a.min_liquidity_usd||20000).toLocaleString("de-DE")} $</span></div>
         <div class="kv"><span class="k">Telegram</span><span class="v">${a.telegram || s.telegram ? "verbunden" : "—"}</span></div>
       </div></div>
       <p class="note">Einstellungen und Befehle laufen über Telegram. Diese App ist schreibgeschützt. Zum Startbildschirm hinzufügen: Browser-Menü → <em>Zum Startbildschirm</em>.</p>`;
