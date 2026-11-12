@@ -8,6 +8,9 @@
 
   const PLAN_B = (window.DESK_PLAN === "B");
   const DATA_ORIGIN = window.DESK_DATA_ORIGIN || "";
+  const DATA_REPO = window.DESK_DATA_REPO || "ugurcan0096-hue/trading-desk";
+  const DATA_BRANCH = window.DESK_DATA_BRANCH || "data";
+  const DATA_RAW = (window.DESK_DATA_RAW || "https://raw.githubusercontent.com/ugurcan0096-hue/trading-desk").replace(/\/$/, "");
 
   function takeHashParam(name, storageKey) {
     const hash = location.hash || "";
@@ -30,9 +33,35 @@
   let DATA_PATH = takeDataPath();
   if (TOKEN || DATA_PATH) stripHashParams();
 
-  function planBUrl(file) {
-    const base = DATA_ORIGIN.replace(/\/$/, "") + "/d/" + DATA_PATH + "/" + file.replace(/^\//, "");
-    return base + (base.includes("?") ? "&" : "?") + "t=" + Date.now();
+  // raw.githubusercontent.com branch URLs are cached ~5 min and ignore ?t=.
+  // Resolve the data-branch tip SHA via the public GitHub API (CORS, ~60s cache)
+  // and fetch raw files by commit SHA so the phone sees new snapshots within ~1–2 min.
+  let tipSha = "";
+  let tipShaAt = 0;
+  const TIP_TTL_MS = 60000;
+
+  async function resolveDataTip() {
+    const now = Date.now();
+    if (tipSha && (now - tipShaAt) < TIP_TTL_MS) return tipSha;
+    try {
+      const res = await fetch(
+        "https://api.github.com/repos/" + DATA_REPO + "/git/refs/heads/" + DATA_BRANCH,
+        { cache: "no-store", mode: "cors", headers: { "Accept": "application/vnd.github+json" } }
+      );
+      if (res.ok) {
+        const j = await res.json();
+        const sha = (j.object && j.object.sha) || "";
+        if (sha) { tipSha = sha; tipShaAt = now; return tipSha; }
+      }
+    } catch (e) {}
+    return tipSha || "";
+  }
+
+  async function planBUrl(file) {
+    const rel = "d/" + DATA_PATH + "/" + file.replace(/^\//, "");
+    const sha = await resolveDataTip();
+    if (sha) return DATA_RAW + "/" + sha + "/" + rel;
+    return DATA_ORIGIN.replace(/\/$/, "") + "/" + rel;
   }
 
   async function fetchPlanB(path) {
@@ -53,7 +82,7 @@
     } else {
       throw Object.assign(new Error("Change settings in Telegram. This app is read-only."), { status: 405 });
     }
-    const res = await fetch(planBUrl(file), { cache: "no-store", mode: "cors" });
+    const res = await fetch(await planBUrl(file), { cache: "no-store", mode: "cors" });
     if (!res.ok) throw Object.assign(new Error("data " + res.status), { status: res.status });
     const data = await res.json();
     if (u === "/api/chart") {
