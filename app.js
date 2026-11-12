@@ -428,7 +428,21 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    let reloading = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (reloading || window.__deskSWReloading) return;
+      reloading = true;
+      window.__deskSWReloading = true;
+      location.reload();
+    });
+    navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then((reg) => {
+      const ping = () => { try { reg.update(); } catch (e) {} };
+      ping();
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") ping();
+      });
+      window.addEventListener("focus", ping);
+    }).catch(() => {});
   }
 
   $$("#tabbar .tab").forEach((b) => b.addEventListener("click", () => go(b.dataset.tab)));

@@ -38,6 +38,27 @@
       <span>Konto</span>
     </button>
   </nav>
+  <script>
+    /* Pick up a new service worker even if an older app.js is still cached. */
+    (function () {
+      if (!("serviceWorker" in navigator)) return;
+      var reloading = false;
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (reloading || window.__deskSWReloading) return;
+        reloading = true;
+        window.__deskSWReloading = true;
+        location.reload();
+      });
+      navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then(function (reg) {
+        var ping = function () { try { reg.update(); } catch (e) {} };
+        ping();
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "visible") ping();
+        });
+        window.addEventListener("focus", ping);
+      }).catch(function () {});
+    })();
+  </script>
   <script src="desk-config.js"></script>
   <script src="app.js"></script>
 </body>
