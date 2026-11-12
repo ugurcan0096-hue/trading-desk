@@ -191,3 +191,17 @@ h1.page { font-size: 22px; font-weight: 650; margin: 4px var(--gutter) 14px; let
 @keyframes shine { to { background-position: -200% 0; } }
 
 .link { color: var(--cyan); font-size: 13px; font-weight: 600; }
+
+/* Full-screen notice when the data key is missing or render fails */
+.notice {
+  margin: 24px var(--gutter);
+  background: linear-gradient(180deg, #161e2c 0%, #10161f 100%);
+  border: 1px solid var(--stroke);
+  border-radius: 22px;
+  padding: 22px 20px 20px;
+}
+.notice-kicker { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 650; }
+.notice h1 { font-size: 22px; margin: 8px 0 12px; letter-spacing: -0.02em; }
+.notice p { color: var(--text); font-size: 15px; line-height: 1.45; margin: 0 0 10px; }
+.notice-sub { color: var(--muted) !important; font-size: 13px !important; }
+.notice code { font-family: var(--mono); color: var(--cyan); }
