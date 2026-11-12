@@ -185,7 +185,17 @@
       const w = String(s.wallet_pubkey);
       pk = `<span class="s mono">${esc(w.slice(0,4) + "…" + w.slice(-4))}</span>`;
     }
-    return `<div class="wallet-row"><span>${bits.join(" · ")}</span>${pk}</div>`;
+    let stop = "";
+    if (s.auto_stop_at) {
+      try {
+        const d = new Date(s.auto_stop_at);
+        const hh = d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin", hour12: false });
+        stop = `<div class="wallet-row"><span>AUTO-Stop ${esc(hh)} (Europe/Berlin)</span></div>`;
+      } catch (e) {
+        stop = `<div class="wallet-row"><span>AUTO-Stop ${esc(s.auto_stop_at)}</span></div>`;
+      }
+    }
+    return `<div class="wallet-row"><span>${bits.join(" · ")}</span>${pk}</div>` + stop;
   }
 
   function solscanLinks(row) {
@@ -353,6 +363,7 @@
           <div class="num">${a.wallet_sol!=null?Number(a.wallet_sol).toFixed(4)+" SOL":"—"}${a.wallet_usdc!=null?" · "+Number(a.wallet_usdc).toFixed(2)+" USDC":""}</div>
           ${a.wallet_pubkey?`<div class="s mono">${esc(a.wallet_pubkey)}</div>`:""}
         </div>
+        ${a.auto_stop_at?`<div class="field"><label>AUTO-Stop</label><div>${esc(a.auto_stop_at)} (Europe/Berlin)</div></div>`:""}
         <div class="field"><label>Paper stack</label>
           ${PLAN_B?`<div class="num">${esc(a.stack)}</div>`:`<input id="stack-field" type="number" inputmode="decimal" value="${esc(a.stack)}">`}
         </div>
