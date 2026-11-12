@@ -11,25 +11,36 @@
   const DATA_BRANCH = window.DESK_DATA_BRANCH || "data";
   const DATA_RAW = (window.DESK_DATA_RAW || "https://raw.githubusercontent.com/ugurcan0096-hue/trading-desk").replace(/\/$/, "");
 
+  function readStored(storageKey) {
+    try { return localStorage.getItem(storageKey) || ""; } catch (e) { return ""; }
+  }
+  function writeStored(storageKey, value) {
+    try {
+      localStorage.setItem(storageKey, value);
+      return localStorage.getItem(storageKey) === value;
+    } catch (e) { return false; }
+  }
   function takeHashParam(name, storageKey) {
     const hash = location.hash || "";
     const re = new RegExp("(?:^|#|&)" + name + "=([^&]+)");
     const m = hash.match(re);
     if (m) {
       const v = decodeURIComponent(m[1]);
-      try { localStorage.setItem(storageKey, v); } catch (e) {}
-      return v;
+      const ok = writeStored(storageKey, v);
+      return { value: v, persisted: ok, fromHash: true };
     }
-    try { return localStorage.getItem(storageKey) || ""; } catch (e) { return ""; }
+    return { value: readStored(storageKey), persisted: true, fromHash: false };
   }
   function stripHashParams() {
     if (location.hash) history.replaceState(null, "", location.pathname + location.search);
   }
-  function takeToken() { return takeHashParam("t", "desk_token"); }
-  function takeDataPath() { return takeHashParam("d", "desk_data_path"); }
-  let TOKEN = takeToken();
-  let DATA_PATH = takeDataPath();
-  if (TOKEN || DATA_PATH) stripHashParams();
+  const _tok = takeHashParam("t", "desk_token");
+  const _path = takeHashParam("d", "desk_data_path");
+  let TOKEN = _tok.value;
+  let DATA_PATH = _path.value;
+  // Only hide the fragment after it is confirmed in localStorage, so a service
+  // worker reload or a Start-screen open still has the key.
+  if ((TOKEN || DATA_PATH) && _tok.persisted && _path.persisted) stripHashParams();
 
   let tipSha = "";
   let tipShaAt = 0;
@@ -125,8 +136,11 @@
   function coinName(row) { return row.symbol || row.name || shortMint(row.mint); }
 
   function parseTs(ts) {
+    if (ts == null || ts === "") return null;
+    if (typeof ts === "object") ts = ts.ts || ts.iso || ts.updated_at || "";
+    if (typeof ts !== "string") ts = String(ts);
     if (!ts) return null;
-    const d = new Date(ts.endsWith("Z") || ts.includes("+") ? ts : ts + "Z");
+    const d = new Date(ts.endsWith("Z") || ts.includes("+") || ts.includes("T") ? ts : ts + "Z");
     return isNaN(d) ? null : d;
   }
   function timeBerlin(ts) {
@@ -221,7 +235,7 @@
     return `<div class="section-h"><h2>Agenten</h2></div>
       <div class="agents">${names.map((n) => {
         const ts = beats[n];
-        const d = parseTs(ts);
+        const d = parseTs(typeof ts === "object" && ts ? (ts.ts || ts.at) : ts);
         const ref = pref || new Date();
         const age = d ? (ref.getTime() - d.getTime()) / 1000 : 9999;
         const off = paused[n];
@@ -250,6 +264,7 @@
     return r;
   }
   function scanRow(f) {
+    if (!f || typeof f !== "object") return "";
     const name = esc(coinName(f));
     const mint = esc(shortMint(f.mint));
     const v = f.verdict || "";
@@ -265,6 +280,7 @@
   }
 
   function positionCard(p) {
+    if (!p || typeof p !== "object") return "";
     const name = esc(coinName(p));
     const href = p.dexscreener || p.link;
     const title = href ? `<a href="${esc(href)}" target="_blank" rel="noopener">${name}</a>` : name;
@@ -294,6 +310,7 @@
     return links.join(" · ");
   }
   function tradeRow(t) {
+    if (!t || typeof t !== "object") return "";
     const name = esc(coinName(t));
     const coin = t.link ? `<a href="${esc(t.link)}" target="_blank" rel="noopener">${name}</a>` : name;
     let pnl = "—", cls = "";
@@ -317,8 +334,8 @@
   function renderStart() {
     const s = state.cache.state;
     if (!s) return skeleton();
-    const feed = (s.scanner_feed || []).slice(0, 6);
-    const opens = s.open_positions || [];
+    const feed = Array.isArray(s.scanner_feed) ? s.scanner_feed.slice(0, 6) : [];
+    const opens = Array.isArray(s.open_positions) ? s.open_positions : [];
     return `${hero(s)}
       ${statsGrid(s)}
       ${agentRow(s)}
@@ -335,7 +352,7 @@
   function renderScanner() {
     const s = state.cache.state;
     if (!s) return `<h1 class="page">Scanner</h1>` + skeleton();
-    const feed = s.scanner_feed || [];
+    const feed = Array.isArray(s.scanner_feed) ? s.scanner_feed : [];
     return `<h1 class="page">Scanner</h1>
       <div class="updated" style="margin-top:-8px">Heute ${esc(String((s.stats||{}).coins_seen ?? "—"))} gesehen · ${esc(String((s.stats||{}).passed ?? "—"))} bestanden</div>
       <div class="section"><div class="card">${feed.length ? feed.map(scanRow).join("") : `<div class="empty">Warte auf neue Coins…</div>`}</div></div>`;
@@ -344,8 +361,9 @@
   function renderPositionen() {
     const s = state.cache.state;
     if (!s) return `<h1 class="page">Positionen</h1>` + skeleton();
-    const opens = s.open_positions || [];
-    const trades = (s.trades || state.cache.trades || []).slice(0, 30);
+    const opens = Array.isArray(s.open_positions) ? s.open_positions : [];
+    const rawTrades = s.trades || state.cache.trades || [];
+    const trades = (Array.isArray(rawTrades) ? rawTrades : (rawTrades.rows || [])).slice(0, 30);
     return `<h1 class="page">Positionen</h1>
       <div class="section">
         <div class="section-h"><h2>Offen</h2></div>
@@ -376,20 +394,42 @@
         <div class="kv"><span class="k">Adresse</span><span class="v mint-s">${esc(s.wallet_pubkey || "—")}</span></div>
         <div class="kv"><span class="k">AUTO-Stop</span><span class="v">${esc(stop && String(stop).trim() ? stopLine : "keiner geplant")}</span></div>
         <div class="kv"><span class="k">Paper-Stack</span><span class="v">${a.stack != null ? moneyUSD(a.stack) : "—"}</span></div>
-        <div class="kv"><span class="k">Min. Liquidität</span><span class="v">${(s.min_liquidity_usd||a.min_liquidity_usd||20000).toLocaleString("de-DE")} $</span></div>
+        <div class="kv"><span class="k">Min. Liquidität</span><span class="v">${fmt(s.min_liquidity_usd||a.min_liquidity_usd||20000, 0)} $</span></div>
+        <div class="kv"><span class="k">Trailing ab</span><span class="v">+${fmt(s.trail_start_pct||a.trail_start_pct||100, 0)}&nbsp;% · ${fmt(s.trail_pct||a.trail_pct||12, 0)}&nbsp;% vom Peak</span></div>
+        <div class="kv"><span class="k">Take-Profit</span><span class="v">+${fmt(s.take_profit_pct||a.take_profit_pct||300, 0)}&nbsp;%</span></div>
         <div class="kv"><span class="k">Telegram</span><span class="v">${a.telegram || s.telegram ? "verbunden" : "—"}</span></div>
       </div></div>
       <p class="note">Einstellungen und Befehle laufen über Telegram. Diese App ist schreibgeschützt. Zum Startbildschirm hinzufügen: Browser-Menü → <em>Zum Startbildschirm</em>.</p>`;
   }
 
+  function keyMissingNotice() {
+    return `<div class="notice" role="alert">
+      <div class="notice-kicker">Trading Desk</div>
+      <h1>Schlüssel fehlt</h1>
+      <p>Die App braucht den persönlichen Link (mit <code>#d=</code>), den ich dir geschickt habe. Öffne genau diesen Link einmal in diesem Browser — danach bleibt er auf dem Gerät gespeichert.</p>
+      <p class="notice-sub">Wenn du die App vom Startbildschirm öffnest und das siehst, öffne zuerst den Link in Chrome und füge sie danach erneut hinzu.</p>
+    </div>`;
+  }
+  function renderErrorNotice(msg) {
+    return `<div class="notice" role="alert">
+      <div class="notice-kicker">Trading Desk</div>
+      <h1>Anzeige fehlgeschlagen</h1>
+      <p>${esc(msg || "Die Daten konnten nicht dargestellt werden. Bitte die Seite neu laden.")}</p>
+    </div>`;
+  }
+
   function paint() {
-    $$(".tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === state.tab));
-    const screen = state.screen;
-    if (screen === "scanner") appEl.innerHTML = renderScanner();
-    else if (screen === "positionen") appEl.innerHTML = renderPositionen();
-    else if (screen === "konto") appEl.innerHTML = renderKonto();
-    else appEl.innerHTML = renderStart();
-    afterPaint();
+    try {
+      $$(".tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === state.tab));
+      const screen = state.screen;
+      if (screen === "scanner") appEl.innerHTML = renderScanner();
+      else if (screen === "positionen") appEl.innerHTML = renderPositionen();
+      else if (screen === "konto") appEl.innerHTML = renderKonto();
+      else appEl.innerHTML = renderStart();
+      afterPaint();
+    } catch (e) {
+      appEl.innerHTML = renderErrorNotice(e && e.message);
+    }
   }
 
   function afterPaint() {
@@ -404,11 +444,11 @@
 
   async function refresh() {
     if (PLAN_B && !DATA_PATH) {
-      appEl.innerHTML = `<div class="empty">Öffne die App über den Link, den ich dir geschickt habe (er enthält ein #d=-Fragment). Nach dem ersten Öffnen bleibt er auf diesem Gerät gespeichert.</div>`;
+      appEl.innerHTML = keyMissingNotice();
       return;
     }
     if (!PLAN_B && !TOKEN) {
-      appEl.innerHTML = `<div class="empty">Öffne die App über den zugesandten Link.</div>`;
+      appEl.innerHTML = keyMissingNotice();
       return;
     }
     try {
@@ -422,7 +462,7 @@
       showError(true);
       paint();
     } catch (e) {
-      if (!state.cache.state) appEl.innerHTML = skeleton();
+      if (!state.cache.state) appEl.innerHTML = renderErrorNotice("Keine Daten geladen (Status " + ((e && e.status) || "offline") + "). Bitte Verbindung prüfen und neu laden.") + skeleton();
       showError(false);
     }
   }

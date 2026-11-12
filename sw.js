@@ -1,5 +1,5 @@
 /* Trading Desk service worker — network-first for HTML/JS/CSS, cache fallback. */
-const CACHE = "desk-shell-v4";
+const CACHE = "desk-shell-v5";
 const SHELL = [
   "./", "./index.html", "./app.css", "./app.js", "./desk-config.js", "./manifest.json",
   "./icons/icon-192.png", "./icons/icon-512.png",
@@ -11,6 +11,22 @@ function isShellRequest(request, url) {
   if (request.mode === "navigate") return true;
   const p = url.pathname;
   return /\.(?:html|js|css)$/i.test(p) || p.endsWith("/trading-desk") || p.endsWith("/trading-desk/");
+}
+
+function isPageRequest(request, url) {
+  if (request.mode === "navigate" || request.destination === "document") return true;
+  const p = url.pathname;
+  return /\.html$/i.test(p) || p.endsWith("/trading-desk") || p.endsWith("/trading-desk/") || p.endsWith("/");
+}
+
+function fallback(request, url) {
+  return caches.match(request).then((r) => {
+    if (r) return r;
+    // Never serve index.html for scripts/styles — that parses as a JS SyntaxError
+    // and leaves a blank screen on the phone.
+    if (isPageRequest(request, url)) return caches.match("./index.html");
+    return undefined;
+  });
 }
 
 self.addEventListener("install", (event) => {
@@ -40,7 +56,7 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE).then((c) => c.put(event.request, copy)).catch(() => {});
         }
         return res;
-      }).catch(() => caches.match(event.request).then((r) => r || caches.match("./index.html")))
+      }).catch(() => fallback(event.request, url))
     );
     return;
   }
@@ -55,7 +71,7 @@ self.addEventListener("fetch", (event) => {
         return res;
       });
       return cached || fetched;
-    }).catch(() => caches.match("./index.html"))
+    }).catch(() => fallback(event.request, url))
   );
 });
 
