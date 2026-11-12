@@ -216,14 +216,18 @@
     const beats = (s && s.heartbeats) || {};
     const paused = (s && s.paused_agents) || {};
     const names = ["scanner", "auditor", "analyst", "executor", "risk"];
+    const published = (s && (s.updated_at || s.published_at)) || null;
+    const pref = parseTs(published);
     return `<div class="section-h"><h2>Agenten</h2></div>
       <div class="agents">${names.map((n) => {
         const ts = beats[n];
         const d = parseTs(ts);
-        const age = d ? (Date.now() - d.getTime()) / 1000 : 9999;
+        const ref = pref || new Date();
+        const age = d ? (ref.getTime() - d.getTime()) / 1000 : 9999;
         const off = paused[n];
-        const cls = off ? "off" : (age < 30 ? "ok" : age < 90 ? "stale" : "off");
-        return `<div class="agent ${cls}"><div class="dot"></div><div class="n">${AGENT_LABEL[n]}</div><div class="age">${off ? "aus" : ago(ts)}</div></div>`;
+        const cls = off ? "off" : (age < 45 ? "ok" : age < 180 ? "stale" : "off");
+        const label = off ? "aus" : (d ? (age < 10 ? "ok" : Math.max(0, Math.floor(age)) + "s") : "—");
+        return `<div class="agent ${cls}"><div class="dot"></div><div class="n">${AGENT_LABEL[n]}</div><div class="age">${label}</div></div>`;
       }).join("")}</div>`;
   }
 
@@ -238,6 +242,13 @@
     if (n >= 1000) return "Liq. " + fmt(n / 1000, 1) + "k $";
     return "Liq. " + moneyUSD(n);
   }
+  function reasonLine(reason, liq) {
+    if (!reason) return "";
+    const r = String(reason);
+    if (/^liq\s/i.test(r) && liq != null) return "";
+    if (/^liq unknown$/i.test(r) && (liq == null)) return "";
+    return r;
+  }
   function scanRow(f) {
     const name = esc(coinName(f));
     const mint = esc(shortMint(f.mint));
@@ -247,7 +258,7 @@
     return `<div class="row">
       <div class="mid">
         <div class="t">${title} <span class="mint-s">${mint}</span></div>
-        <div class="s">${esc(liqLabel(f.liquidityUsd))} · ${esc(f.reason || "—")} · ${esc(timeBerlin(f.ts))}</div>
+        <div class="s">${esc([liqLabel(f.liquidityUsd), reasonLine(f.reason, f.liquidityUsd), timeBerlin(f.ts)].filter(Boolean).join(" · "))}</div>
       </div>
       <span class="verdict ${esc(v)}">${esc(verdictLabel(v))}</span>
     </div>`;
