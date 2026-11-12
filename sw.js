@@ -1,7 +1,11 @@
-/* Trading desk service worker — cache the app shell, show web pushes. */
-const CACHE = "desk-shell-v1";
-const SHELL = ["./", "./index.html", "./app.css", "./app.js", "./chart.js", "./manifest.json",
-  "./icons/icon-192.png", "./icons/icon-512.png"];
+/* Trading Desk service worker — App-Shell cachen. */
+const CACHE = "desk-shell-v3";
+const SHELL = [
+  "./", "./index.html", "./app.css", "./app.js", "./desk-config.js", "./manifest.json",
+  "./icons/icon-192.png", "./icons/icon-512.png",
+  "./icons/icon-192-maskable.png", "./icons/icon-512-maskable.png",
+  "./icons/apple-touch-icon.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL).catch(() => {})).then(() => self.skipWaiting()));
@@ -14,7 +18,7 @@ self.addEventListener("activate", (event) => {
 });
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) return; // data from raw.githubusercontent.com
+  if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/") || url.pathname.includes("/d/")) return;
   event.respondWith(
     fetch(event.request).then((res) => {
@@ -29,14 +33,12 @@ self.addEventListener("push", (event) => {
   try { data = event.data ? event.data.json() : {}; } catch (e) {
     data = { body: event.data ? event.data.text() : "Update" };
   }
-  const title = data.title || "Grok Bot · now";
-  const options = {
+  event.waitUntil(self.registration.showNotification(data.title || "Trading Desk", {
     body: data.body || "",
     icon: "./icons/icon-192.png",
     badge: "./icons/icon-192.png",
     data: { url: data.url || "./" },
-  };
-  event.waitUntil(self.registration.showNotification(title, options));
+  }));
 });
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();

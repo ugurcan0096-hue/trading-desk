@@ -1,42 +1,44 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#080c14">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Grok Desk">
+  <meta name="apple-mobile-web-app-title" content="Desk">
+  <meta name="application-name" content="Trading Desk">
+  <meta name="description" content="Privates Trading Desk — Live-Status, Scanner und Positionen.">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-  <title>Grok Bot</title>
+  <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+  <title>Trading Desk</title>
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
   <div id="error-bar" class="error-bar hidden" role="status"></div>
   <div id="app"></div>
   <nav class="tabbar" id="tabbar">
-    <button data-tab="home" class="tab on" aria-label="Home">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>
-      <span>Home</span>
+    <button data-tab="start" class="tab on" aria-label="Start">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>
+      <span>Start</span>
     </button>
-    <button data-tab="agents" class="tab" aria-label="Agents">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="8" r="2.4"/><circle cx="17" cy="8" r="2.4"/><circle cx="12" cy="16" r="2.4"/></svg>
-      <span>Agents</span>
+    <button data-tab="scanner" class="tab" aria-label="Scanner">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16.5 16.5 4 4"/><path d="M11 8v6M8 11h6"/></svg>
+      <span>Scanner</span>
     </button>
-    <button data-tab="activity" class="tab" aria-label="Activity">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
-      <span>Activity</span>
+    <button data-tab="positionen" class="tab" aria-label="Positionen">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5m0 14h16"/><path d="M8 15l3.5-4.5 3 2.5L19 7"/></svg>
+      <span>Positionen</span>
     </button>
-    <button data-tab="account" class="tab" aria-label="Account">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.2"/><path d="M5 19c1.6-3 4-4.5 7-4.5S17.4 16 19 19"/></svg>
-      <span>Account</span>
+    <button data-tab="konto" class="tab" aria-label="Konto">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.2"/><path d="M5 19c1.6-3 4-4.5 7-4.5S17.4 16 19 19"/></svg>
+      <span>Konto</span>
     </button>
   </nav>
   <script src="desk-config.js"></script>
-  <script src="chart.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
