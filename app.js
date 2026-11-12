@@ -72,6 +72,7 @@
     else if (u === "/api/chart") file = "chart.json";
     else if (u === "/api/activity") file = "activity.json";
     else if (u === "/api/account") file = "account.json";
+    else if (u === "/api/trades") file = "trades.json";
     else if (u.startsWith("/api/coin/")) file = "coin/" + u.slice("/api/coin/".length) + ".json";
     else if (u.startsWith("/api/audit/")) file = "audit/" + u.slice("/api/audit/".length) + ".json";
     else if (/^\/api\/agents\/[^/]+\/decisions$/.test(u)) {
@@ -165,8 +166,54 @@
     </div>`;
   }
 
-  function paperBadge(mode) {
-    return mode === "PAPER" ? '<span class="paper-pill">PAPER</span>' : "";
+  function modeBadge(mode) {
+    const m = String(mode || "PAPER").toUpperCase();
+    if (m === "AUTO") return '<span class="mode-pill auto">AUTO</span>';
+    if (m === "LIVE") return '<span class="mode-pill live">LIVE</span>';
+    return '<span class="paper-pill">PAPER</span>';
+  }
+  function paperBadge(mode) { return modeBadge(mode); }
+
+  function walletLine(s) {
+    if (!s) return "";
+    const bits = [];
+    if (s.wallet_sol != null && s.wallet_sol !== "") bits.push(Number(s.wallet_sol).toFixed(4) + " SOL");
+    if (s.wallet_usdc != null && s.wallet_usdc !== "") bits.push(Number(s.wallet_usdc).toFixed(2) + " USDC");
+    if (!bits.length) return "";
+    let pk = "";
+    if (s.wallet_pubkey) {
+      const w = String(s.wallet_pubkey);
+      pk = `<span class="s mono">${esc(w.slice(0,4) + "…" + w.slice(-4))}</span>`;
+    }
+    return `<div class="wallet-row"><span>${bits.join(" · ")}</span>${pk}</div>`;
+  }
+
+  function solscanLinks(row) {
+    const links = [];
+    if (row && row.buy_solscan) links.push(`<a class="tx" href="${esc(row.buy_solscan)}" target="_blank" rel="noopener">buy ↗</a>`);
+    if (row && row.sell_solscan) links.push(`<a class="tx" href="${esc(row.sell_solscan)}" target="_blank" rel="noopener">sell ↗</a>`);
+    if (row && row.solscan && !row.buy_solscan && !row.sell_solscan) {
+      links.push(`<a class="tx" href="${esc(row.solscan)}" target="_blank" rel="noopener">tx ↗</a>`);
+    }
+    return links.join(" ");
+  }
+
+  function tradeRow(t) {
+    const name = esc(t.symbol || t.name || (t.mint || "").slice(0, 8));
+    const st = esc(t.status || "");
+    const coin = t.link ? `<a href="${esc(t.link)}" target="_blank" rel="noopener">${name}</a>` : name;
+    let size = "";
+    if (t.sol_spent != null) size = Number(t.sol_spent).toFixed(4) + " SOL";
+    else if (t.size_usd != null) size = money(t.size_usd);
+    let pnl = "";
+    if (t.pnl_sol != null) pnl = (Number(t.pnl_sol) >= 0 ? "+" : "") + Number(t.pnl_sol).toFixed(4) + " SOL";
+    else if (t.pnl_usd != null) pnl = money(t.pnl_usd);
+    const vclass = (t.pnl_sol != null && t.pnl_sol < 0) || (t.pnl_usd != null && t.pnl_usd < 0) ? "neg" : "pos";
+    const why = esc(t.exit_reason || t.mode || "");
+    return `<div class="activity-row trade-row">
+      <div class="mid"><div class="t">${coin} · ${st}</div><div class="s">${why} ${solscanLinks(t)}</div></div>
+      <div class="v num ${t.status==="open"||t.status==="exiting"?"":vclass}">${esc(pnl || size)}</div>
+    </div>`;
   }
 
   function skeleton() {
@@ -190,6 +237,7 @@
           <span class="${pos ? "pos" : "neg"} num">${pct(s.today_pct)}</span>
           <span class="mult ${s.multiplier >= 1 ? "" : "neg"} num">${Number(s.multiplier || 1).toFixed(2)}×</span>
         </div>
+        ${walletLine(s)}
       </div>
       <div class="chart-wrap"><canvas id="home-chart"></canvas></div>
       <div class="range" id="range">
@@ -198,6 +246,13 @@
       <div class="section">
         <div class="section-h"><h2>Agents · ${agents.filter(a=>a.status==="running").length} running</h2></div>
         <div class="carousel" id="cards">${agents.map(agentCard).join("")}</div>
+      </div>
+      <div class="section">
+        <div class="section-h"><h2>Live trades</h2></div>
+        ${(function(){
+          const trades = (s.trades || state.cache.trades || []).slice(0, 8);
+          return trades.length ? trades.map(tradeRow).join("") : `<div class="empty">No trades yet</div>`;
+        })()}
       </div>
       <div class="section">
         <div class="section-h"><h2>Activity</h2><button class="link" data-tab="activity">See all</button></div>
@@ -238,10 +293,14 @@
   function activityRow(r) {
     const vclass = (r.kind === "stopped" || (r.value||"").startsWith("-")) ? "neg" : (r.kind==="bought"||r.kind==="sold" ? "pos" : "");
     const dest = (r.kind === "rejected") ? "auditor" : "coin";
-    return `<button class="activity-row" data-open="${dest}" data-mint="${esc(r.mint||"")}">
-      <div class="mid"><div class="t">${esc(r.title)}</div><div class="s">${esc(r.subtitle||"")}</div></div>
-      <div class="v num ${vclass}">${esc(r.value||"")}</div>
-    </button>`;
+    const tx = solscanLinks(r);
+    return `<div class="activity-row">
+      <button class="mid linkish" data-open="${dest}" data-mint="${esc(r.mint||"")}">
+        <div class="t">${esc(r.title)}</div>
+        <div class="s">${esc(r.subtitle||"")}</div>
+      </button>
+      <div class="v num ${vclass}">${esc(r.value||"")} ${tx}</div>
+    </div>`;
   }
 
   function renderAgents() {
@@ -284,13 +343,17 @@
       <div class="list-screen">
         <div class="field"><label>Mode</label>
           <div class="row-between">
-            <strong>${esc(a.mode)}</strong>
+            <strong>${modeBadge(a.mode)} ${esc(a.mode)}</strong>
             ${PLAN_B?`<span class="s">change in Telegram</span>`:(
               a.mode==="PAPER"?`<button class="btn secondary" style="width:auto;padding:0 16px;margin:0" id="to-live">Go LIVE</button>`:
               `<button class="btn secondary" style="width:auto;padding:0 16px;margin:0" id="to-paper">PAPER</button>`)}
           </div>
         </div>
-        <div class="field"><label>Stack</label>
+        <div class="field"><label>Wallet</label>
+          <div class="num">${a.wallet_sol!=null?Number(a.wallet_sol).toFixed(4)+" SOL":"—"}${a.wallet_usdc!=null?" · "+Number(a.wallet_usdc).toFixed(2)+" USDC":""}</div>
+          ${a.wallet_pubkey?`<div class="s mono">${esc(a.wallet_pubkey)}</div>`:""}
+        </div>
+        <div class="field"><label>Paper stack</label>
           ${PLAN_B?`<div class="num">${esc(a.stack)}</div>`:`<input id="stack-field" type="number" inputmode="decimal" value="${esc(a.stack)}">`}
         </div>
         <a class="field row-between" href="${esc(a.profile_url)}"><span>Your FOMO profile</span><span>@${esc(a.fomo_handle)} ›</span></a>
@@ -584,7 +647,7 @@
       return;
     }
     try {
-      const jobs = [api("/api/state"), api("/api/activity")];
+      const jobs = [api("/api/state"), api("/api/activity"), api("/api/trades").catch(() => ({ rows: [] }))];
       if (state.screen === "home") jobs.push(api("/api/chart?range=" + state.range));
       if (state.screen === "account") jobs.push(api("/api/account"));
       if (state.screen === "agents") {
@@ -595,7 +658,8 @@
       const results = await Promise.all(jobs);
       state.cache.state = results[0];
       state.cache.activity = results[1].rows || [];
-      let i = 2;
+      state.cache.trades = (results[2] && (results[2].rows || results[2].trades)) || [];
+      let i = 3;
       if (state.screen === "home") state.cache.chart = results[i++];
       if (state.screen === "account") state.cache.account = results[i++];
       if (state.screen === "agents") {
