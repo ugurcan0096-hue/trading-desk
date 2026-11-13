@@ -104,3 +104,16 @@ fw = FW(); m.step(st2, fw); assert st2["positions"], "live buy did not happen"
 price["x"] = 1.4; m.step(st2, fw)
 assert st2["closed"] and st2["halted"] is None, (st2["halted"], st2["closed"])
 print("LIVE NO-FALSE-HALT TEST PASSED")
+
+# Token-2022 danger checks
+def acct(info): return {"result": {"value": {"data": {"parsed": {"info": info}}}}}
+base = {"mintAuthority": None, "freezeAuthority": None}
+cases = [([{"extension": "permanentDelegate", "state": {"delegate": "X"}}], False),
+         ([{"extension": "transferFeeConfig", "state": {"newerTransferFee": {"transferFeeBasisPoints": 300}, "olderTransferFee": {"transferFeeBasisPoints": 0}}}], False),
+         ([{"extension": "transferFeeConfig", "state": {"newerTransferFee": {"transferFeeBasisPoints": 0}, "olderTransferFee": {"transferFeeBasisPoints": 0}}}], True),
+         ([{"extension": "metadataPointer", "state": {}}], True)]
+for ext, ok in cases:
+    m.http = lambda url, body=None, tries=3, e=ext: acct({**base, "extensions": e})
+    assert m.token_safety("T")[0] == ok, ext
+assert "slippage" in m.short_err(RuntimeError("custom program error: 0x1771"))
+print("TOKEN-2022 + ERROR TESTS PASSED")

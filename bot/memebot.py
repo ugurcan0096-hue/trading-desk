@@ -225,6 +225,7 @@ def sentinel_pretrade(s, p, size_usd, sol_bal, sol_px, now):
     if now - s["last_data_ok"] > STALE_SEC: return False, "stale feed"
     if len(s["positions"]) >= MAX_POS: return False, f"already {len(s['positions'])} open position(s)"
     if p["baseToken"]["address"] in s["positions"]: return False, "already holding"
+    if s.get("fail_until", {}).get(p["baseToken"]["address"], 0) > now: return False, "buy failed recently (30 min pause)"
     if any(t["mint"] == p["baseToken"]["address"] and now - t["closed"] < 7200 for t in s["closed"]):
         return False, "traded this token in the last 2h"
     day = time.strftime("%Y-%m-%d")
@@ -243,6 +244,14 @@ def token_safety(mint):
     if not parsed: return False, "could not read mint account"
     if parsed.get("mintAuthority"): return False, "mint authority still active"
     if parsed.get("freezeAuthority"): return False, "freeze authority still active"
+    for ext in parsed.get("extensions") or []:          # Token-2022 extensions
+        name, st = ext.get("extension"), ext.get("state") or {}
+        if name == "permanentDelegate" and st.get("delegate"): return False, "Token-2022 permanent delegate (creator can take tokens)"
+        if name == "transferHook" and st.get("programId"): return False, "Token-2022 transfer hook (custom code on every transfer)"
+        if name in ("nonTransferable", "pausableConfig"): return False, f"Token-2022 {name}"
+        if name == "transferFeeConfig":
+            bps = max(int((st.get(k) or {}).get("transferFeeBasisPoints") or 0) for k in ("newerTransferFee", "olderTransferFee"))
+            if bps > 0: return False, f"Token-2022 transfer fee {bps/100:.2f}%"
     return True, "mint & freeze revoked"
 
 def roundtrip_check(mint, lamports):
@@ -256,7 +265,21 @@ def roundtrip_check(mint, lamports):
     return True, f"round trip {back:.1%}", buy
 
 # ---------------- execution ----------------
-def swap(wallet, quote):
+def short_err(e):
+    t = str(e)
+    if "6001" in t or "0x1771" in t: return "slippage exceeded (price moved) - not sent, no money spent"
+    if "simulation failed" in t.lower(): return "transaction simulation failed - not sent, no money spent: " + t[:160]
+    return t[:300]
+
+def swap(wallet, quote, requote=None):
+    """Send a swap; on a slippage failure, retry once with a fresh quote."""
+    try: return _swap(wallet, quote)
+    except RuntimeError as e:
+        if requote and ("6001" in str(e) or "0x1771" in str(e)):
+            log("slippage exceeded, retrying once with a fresh quote"); return _swap(wallet, requote())
+        raise
+
+def _swap(wallet, quote):
     body = dict(quoteResponse=quote, userPublicKey=wallet.pub, wrapAndUnwrapSol=True,
                 dynamicComputeUnitLimit=True, prioritizationFeeLamports="auto")
     tx = http(f"{JUP}/swap", body, tries=1)["swapTransaction"]
@@ -292,7 +315,7 @@ def step(s, wallet):
         pnl = val / pos["cost_usd"] - 1; held = (now - pos["opened"]) / 60
         why = exit_reason(pnl, held) or ("halted" if s["halted"] else None)
         if why:
-            if LIVE: sig = swap(wallet, q); swapped = True
+            if LIVE: sig = swap(wallet, q, requote=lambda: jup_quote(pos["mint"], SOL, pos["amount"])); swapped = True
             else: sig = "dry-run"
             s["cash_usd"] += val if not LIVE else 0
             s["closed"].append(dict(symbol=pos["symbol"], mint=mint, pnl_usd=val - pos["cost_usd"], pnl_pct=pnl,
@@ -323,14 +346,21 @@ def step(s, wallet):
         ok, why = sentinel_pretrade(s, p, POS_USD, sol_bal, sol_px, now)
         if not ok:
             log(f"skip {sym}: {why}")
-            if "2h" in why or "holding" in why: continue
+            if "2h" in why or "holding" in why or "failed recently" in why: continue
             break
         ok, safe = token_safety(mint)
         if not ok: log(f"skip {sym}: {safe}"); continue
         lamports = int(POS_USD / sol_px * 1e9)
         ok, rt, quote = roundtrip_check(mint, lamports)
         if not ok: log(f"skip {sym}: {rt}"); continue
-        sig = swap(wallet, quote) if LIVE else "dry-run"
+        if LIVE:
+            try:
+                quote = jup_quote(SOL, mint, lamports)          # fresh quote right before sending
+                sig = swap(wallet, quote, requote=lambda: jup_quote(SOL, mint, lamports))
+            except Exception as e:
+                s.setdefault("fail_until", {})[mint] = now + 1800
+                log(f"buy {sym} failed: {short_err(e)} - skipping this token for 30 min"); continue
+        else: sig = "dry-run"
         s["just_bought"] = LIVE             # skip one equity check while balances settle
         amount = (token_balance(wallet.pub, mint) or int(quote["otherAmountThreshold"])) if LIVE else int(quote["outAmount"])
         if not LIVE: s["cash_usd"] -= POS_USD
@@ -362,7 +392,7 @@ def main():
         try:
             step(s, wallet); fails = 0
         except Exception as e:
-            fails += 1; log(f"error: {e}")
+            fails += 1; log(f"error: {short_err(e)}")
             if fails == 5: notify(f"5 errors in a row, last: {e}")
         save_state(s)
         time.sleep(LOOP_SEC)
