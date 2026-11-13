@@ -268,8 +268,12 @@ def swap(wallet, quote):
         time.sleep(2)
     raise RuntimeError(f"tx {sig} not confirmed in 60s - check it on solscan before restarting")
 
+def sol_balance(wallet):
+    return rpc("getBalance", [wallet.pub, {"commitment": "confirmed"}])["value"] / 1e9
+
 def token_balance(owner, mint):
-    r = rpc("getTokenAccountsByOwner", [owner, {"mint": mint}, {"encoding": "jsonParsed"}])
+    time.sleep(2)
+    r = rpc("getTokenAccountsByOwner", [owner, {"mint": mint}, {"encoding": "jsonParsed", "commitment": "confirmed"}])
     return sum(int(a["account"]["data"]["parsed"]["info"]["tokenAmount"]["amount"]) for a in r["value"])
 
 def position_value_usd(pos, sol_px):
@@ -279,7 +283,8 @@ def position_value_usd(pos, sol_px):
 def step(s, wallet):
     now = time.time(); now_ms = now * 1000
     sol_px = sol_usd()
-    sol_bal = rpc("getBalance", [wallet.pub])["value"] / 1e9 if LIVE else 0.0
+    sol_bal = sol_balance(wallet) if LIVE else 0.0
+    swapped = False
     # 1) manage open positions with executable (quoted) value, not screen price
     pos_val = 0.0
     for mint, pos in list(s["positions"].items()):
@@ -287,7 +292,7 @@ def step(s, wallet):
         pnl = val / pos["cost_usd"] - 1; held = (now - pos["opened"]) / 60
         why = exit_reason(pnl, held) or ("halted" if s["halted"] else None)
         if why:
-            if LIVE: sig = swap(wallet, q)
+            if LIVE: sig = swap(wallet, q); swapped = True
             else: sig = "dry-run"
             s["cash_usd"] += val if not LIVE else 0
             s["closed"].append(dict(symbol=pos["symbol"], mint=mint, pnl_usd=val - pos["cost_usd"], pnl_pct=pnl,
@@ -296,8 +301,11 @@ def step(s, wallet):
             notify(f"SELL {pos['symbol']} {why}: {pnl:+.1%} (${val - pos['cost_usd']:+.2f}) tx {sig}")
         else:
             pos_val += val
+    if swapped:                         # re-read: the sale's SOL must be counted before judging equity
+        time.sleep(3); sol_bal = sol_balance(wallet)
     equity = (sol_bal * sol_px if LIVE else s["cash_usd"]) + pos_val
-    why = sentinel_halt(s, equity)
+    why = sentinel_halt(s, equity) if not (LIVE and s.get("just_bought")) else None
+    s["just_bought"] = False
     if why and not s["halted"]:
         s["halted"] = why; notify(f"HALTED: {why}. Positions will be sold. Clear 'halted' in state.json to resume.")
     # 2) scan for entries
@@ -323,6 +331,7 @@ def step(s, wallet):
         ok, rt, quote = roundtrip_check(mint, lamports)
         if not ok: log(f"skip {sym}: {rt}"); continue
         sig = swap(wallet, quote) if LIVE else "dry-run"
+        s["just_bought"] = LIVE             # skip one equity check while balances settle
         amount = (token_balance(wallet.pub, mint) or int(quote["otherAmountThreshold"])) if LIVE else int(quote["outAmount"])
         if not LIVE: s["cash_usd"] -= POS_USD
         s["positions"][mint] = dict(symbol=sym, mint=mint, amount=amount, cost_usd=POS_USD, opened=now, reason=reason)

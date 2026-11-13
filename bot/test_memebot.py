@@ -75,3 +75,32 @@ ph = "abandon "*11 + "about"
 k3 = m.slip10_ed25519(m.mnemonic_seed(ph), [44, 501, 3, 0]); a3 = m.b58enc(m._Signer(k3).pub_bytes)
 w3, i3 = m.wallet_from_phrase(ph, a3[:6] + "..." + a3[-6:]); assert i3 == 3 and w3.pub == a3
 print("PHRASE TESTS PASSED")
+
+# LIVE: a sell whose SOL arrives must not look like a drawdown
+m.LIVE = True; bal = {"sol": 0.1}; price["x"] = 1.0
+class FW:
+    pub = "WalletX"
+    def sign_tx(self, t): return t
+def fake_http2(url, body=None, tries=3):
+    if body and body.get("method") == "getBalance": return {"result": {"value": int(bal["sol"]*1e9)}}
+    if body and body.get("method") == "getTokenAccountsByOwner":
+        return {"result": {"value": [{"account": {"data": {"parsed": {"info": {"tokenAmount": {"amount": str(held["amt"])}}}}}}]}}
+    if body and body.get("method") == "sendTransaction": return {"result": "SIG"}
+    if body and body.get("method") == "getSignatureStatuses": return {"result": {"value": [{"confirmationStatus": "confirmed", "err": None}]}}
+    if url.endswith("/swap"):
+        q = body["quoteResponse"]
+        if q["_in"] == m.SOL: bal["sol"] -= int(q["_amt"])/1e9; held["amt"] = int(q["outAmount"])
+        else: bal["sol"] += int(q["outAmount"])/1e9; held["amt"] = 0
+        return {"swapTransaction": "x"}
+    r = fake_http(url, body, tries)
+    if "/quote" in url and isinstance(r, dict):
+        qq = dict(x.split("=") for x in url.split("?")[1].split("&")); r["_in"] = qq["inputMint"]; r["_amt"] = qq["amount"]
+    return r
+held = {"amt": 0}; m.http = fake_http2; m.time.sleep = lambda x: None
+st2 = m.load_state(); st2["mode"] = "live"; st2["positions"] = {}; st2["closed"] = []; st2["peak"] = None; st2["halted"] = None
+os.remove(m.STATE) if os.path.exists(m.STATE) else None
+st2 = dict(mode="live", cash_usd=0, positions={}, closed=[], peak=None, halted=None, trades_today={}, last_data_ok=0)
+fw = FW(); m.step(st2, fw); assert st2["positions"], "live buy did not happen"
+price["x"] = 1.4; m.step(st2, fw)
+assert st2["closed"] and st2["halted"] is None, (st2["halted"], st2["closed"])
+print("LIVE NO-FALSE-HALT TEST PASSED")
