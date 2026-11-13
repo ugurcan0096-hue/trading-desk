@@ -1,0 +1,6 @@
+state.json
+state.json.tmp
+bot.log
+STOP
+__pycache__/
+.env
