@@ -44,7 +44,7 @@ d = tempfile.mkdtemp(); m.HERE = d; m.STATE = os.path.join(d, "state.json")
 price = {"x": 1.0}
 def fake_http(url, body=None, tries=3):
     if "/token-profiles/" in url: return [dict(chainId="solana", tokenAddress="Tok1")]
-    if "/token-boosts/" in url: return []
+    if "/token-boosts/" in url or "/search" in url: return [] if "boosts" in url else {"pairs": []}
     if "/tokens/v1/solana/" in url: return [good]
     if "/quote" in url:
         q = dict(x.split("=") for x in url.split("?")[1].split("&")); amt = int(q["amount"])

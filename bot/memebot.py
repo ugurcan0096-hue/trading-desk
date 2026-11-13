@@ -26,6 +26,9 @@ LOOP_SEC      = env("LOOP_SEC", "20", float)
 MIN_LIQ       = env("MIN_LIQ_USD", "20000", float)
 MIN_VOL24     = env("MIN_VOL24_USD", "50000", float)
 MIN_AGE_H     = env("MIN_AGE_H", "6", float)
+H1_MIN        = env("H1_MIN", "5", float)
+H1_MAX        = env("H1_MAX", "40", float)
+BUY_RATIO     = env("BUY_RATIO", "1.2", float)
 MAX_IMPACT    = env("MAX_IMPACT_PCT", "3", float)
 MAX_TRADES_DAY= env("MAX_TRADES_DAY", "10", int)
 DD_HALT       = env("DD_HALT", "0.15", float)
@@ -138,22 +141,26 @@ def candidates():
     """Discovery from DexScreener's latest token profiles + boosts (boosts are PAID promotion: treated as a list
     of names to check, never as a buy signal). Returns pair dicts for Solana tokens."""
     addrs = []
-    for path in ("/token-profiles/latest/v1", "/token-boosts/latest/v1"):
+    for path in ("/token-profiles/latest/v1", "/token-boosts/latest/v1", "/token-boosts/top/v1"):
         try:
             for t in http(DEX + path):
                 if t.get("chainId") == "solana" and t.get("tokenAddress") not in addrs: addrs.append(t["tokenAddress"])
         except Exception as e:
             log(f"discovery {path} failed: {e}")
     pairs = []
-    for i in range(0, min(len(addrs), 90), 30):
+    for i in range(0, min(len(addrs), 150), 30):
         try: pairs += http(f"{DEX}/tokens/v1/solana/{','.join(addrs[i:i+30])}") or []
         except Exception as e: log(f"pair lookup failed: {e}")
+    for q in ("SOL", "USDC", "pump"):     # actively traded Solana pairs
+        try: pairs += (http(f"{DEX}/latest/dex/search?q={q}") or {}).get("pairs") or []
+        except Exception as e: log(f"search {q} failed: {e}")
     return pairs
 
 def best_pair_per_token(pairs):
     best = {}
     for p in pairs:
         if p.get("chainId") != "solana" or p.get("quoteToken", {}).get("address") not in (SOL, USDC): continue
+        if p.get("baseToken", {}).get("address") in (SOL, USDC, "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYb"): continue
         a = p["baseToken"]["address"]
         if a not in best or (p.get("liquidity") or {}).get("usd", 0) > (best[a].get("liquidity") or {}).get("usd", 0):
             best[a] = p
@@ -170,9 +177,9 @@ def entry_signal(p, now_ms):
     if vol < MIN_VOL24: return False, f"24h volume ${vol:,.0f} < ${MIN_VOL24:,.0f}"
     if age_h < MIN_AGE_H: return False, f"pair only {age_h:.1f}h old (launch-day rugs)"
     h1, m5 = ch.get("h1") or 0, ch.get("m5") or 0
-    if not (5 <= h1 <= 40): return False, f"1h change {h1:+.0f}% outside +5..+40% (no trend, or already parabolic)"
+    if not (H1_MIN <= h1 <= H1_MAX): return False, f"1h change {h1:+.0f}% outside +{H1_MIN:.0f}..+{H1_MAX:.0f}%"
     if m5 <= 0: return False, f"5m change {m5:+.1f}%: momentum stalled"
-    if (tx.get("buys") or 0) <= 1.2 * (tx.get("sells") or 0): return False, "buyers not clearly outnumbering sellers (5m)"
+    if (tx.get("buys") or 0) <= BUY_RATIO * (tx.get("sells") or 0): return False, "buyers not clearly outnumbering sellers (5m)"
     return True, f"uptrend: 1h {h1:+.0f}%, 5m {m5:+.1f}%, liq ${liq:,.0f}, buys {tx.get('buys')}/sells {tx.get('sells')}"
 
 def exit_reason(pnl_pct, held_min):
