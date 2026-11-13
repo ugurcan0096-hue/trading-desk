@@ -272,9 +272,14 @@ def step(s, wallet):
     # 2) scan for entries
     pairs = best_pair_per_token(candidates())
     if pairs: s["last_data_ok"] = now
+    else: log("scan: DexScreener returned no Solana tokens this round")
+    rejects, passed = {}, 0
     for p in pairs:
         ok, reason = entry_signal(p, now_ms)
-        if not ok: continue
+        if not ok:
+            k = reason.split(" ")[0] + (" " + reason.split(" ")[1] if reason.startswith(("1h", "5m", "24h", "pair")) else "")
+            rejects[k] = rejects.get(k, 0) + 1; continue
+        passed += 1
         sym, mint = p["baseToken"].get("symbol", "?"), p["baseToken"]["address"]
         ok, why = sentinel_pretrade(s, p, POS_USD, sol_bal, sol_px, now)
         if not ok:
@@ -292,7 +297,9 @@ def step(s, wallet):
         s["positions"][mint] = dict(symbol=sym, mint=mint, amount=amount, cost_usd=POS_USD, opened=now, reason=reason)
         day = time.strftime("%Y-%m-%d"); s["trades_today"][day] = s["trades_today"].get(day, 0) + 1
         notify(f"BUY {sym} ${POS_USD:.2f}: {reason}; {safe}; {rt}; stop -{STOP_LOSS:.0%} / target +{TAKE_PROFIT:.0%}; tx {sig}")
-    log(f"equity ${equity:.2f} (peak ${s['peak']:.2f}), open {len(s['positions'])}, closed {len(s['closed'])}, SOL ${sol_px:.2f}")
+    top = ", ".join(f"{k} {v}" for k, v in sorted(rejects.items(), key=lambda x: -x[1])[:3])
+    log(f"equity ${equity:.2f} (peak ${s['peak']:.2f}), open {len(s['positions'])}, closed {len(s['closed'])}, SOL ${sol_px:.2f} | "
+        f"scanned {len(pairs)}, passed {passed}" + (f" (failed: {top})" if top else ""))
 
 def main():
     wallet = None
