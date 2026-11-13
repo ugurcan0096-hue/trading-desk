@@ -15,14 +15,21 @@ Assume you can lose the whole $13.
 Size: $4 per trade, one at a time. Costs per round trip are roughly 1–5% (pool fee, slippage, priority fee),
 plus ~0.002 SOL rent for each new token account (returned only if the account is closed).
 
-## Run it on your Android phone (Termux)
+## Run it on your Android phone — no PC needed
+1. Install **Termux** from F-Droid (f-droid.org → search "Termux"). The old Play Store version may not work.
+2. Open Termux and type these lines, one at a time (press Enter after each):
 ```
-pkg install python git
-pip install pynacl
-git clone -b claude/new-session-5romvj https://github.com/ugurcan0096-hue/trading-desk && cd trading-desk/bot
-termux-wake-lock          # keep running with the screen off
-python3 memebot.py        # DRY-RUN: fake $13, real prices. Run this for a few days first.
+pkg update -y
+pkg install -y python python-cryptography git
+git clone -b claude/new-session-5romvj https://github.com/ugurcan0096-hue/trading-desk
+cd trading-desk/bot
+termux-wake-lock
+python3 memebot.py
 ```
+3. It now runs in **DRY-RUN** (fake $13, real prices). Leave Termux open; you can switch apps.
+   Android settings → Apps → Termux → Battery → **Unrestricted**, or Android will kill it.
+4. Next time: open Termux, then `cd trading-desk/bot && python3 memebot.py`.
+5. Get updates: `cd ~/trading-desk && git pull`.
 
 ## Go live (your decision)
 1. Make a **new** wallet in Phantom. Send it your $13 in SOL. Never use your main wallet.

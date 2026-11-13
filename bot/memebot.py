@@ -4,7 +4,7 @@ DRY-RUN BY DEFAULT. It only signs and sends real transactions when LIVE=1 is set
 The strategy below is UNPROVEN: it did not go through the lab's 4 gates (no history was available).
 Use a NEW wallet that holds only what you can lose. The key is read from an env var, never stored here.
 
-Run:   pip install pynacl
+Run:   pkg install python python-cryptography   (Termux on Android; or: pip install pynacl)
        export SOLANA_PRIVATE_KEY=...   # only for LIVE=1 (base58, as exported from Phantom/Solflare)
        python3 memebot.py              # dry-run
        LIVE=1 python3 memebot.py       # real money
@@ -69,12 +69,24 @@ def rpc(method, params):
     return r["result"]
 
 # ---------------- wallet / signing ----------------
+class _Signer:
+    """Ed25519 via PyNaCl if installed, else the 'cryptography' package (prebuilt in Termux: pkg install python-cryptography)."""
+    def __init__(self, seed):
+        try:
+            from nacl.signing import SigningKey
+            k = SigningKey(seed); self.pub_bytes = bytes(k.verify_key); self._sign = lambda m: k.sign(m).signature
+        except ImportError:
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+            from cryptography.hazmat.primitives import serialization as ser
+            k = Ed25519PrivateKey.from_private_bytes(seed)
+            self.pub_bytes = k.public_key().public_bytes(ser.Encoding.Raw, ser.PublicFormat.Raw); self._sign = k.sign
+    def sign(self, m): return self._sign(m)
+
 class Wallet:
     def __init__(self, secret_b58):
-        from nacl.signing import SigningKey
         raw = b58dec(secret_b58.strip())
         if len(raw) not in (32, 64): raise ValueError("SOLANA_PRIVATE_KEY must be a base58 32- or 64-byte secret")
-        self.sk = SigningKey(raw[:32]); self.pub = b58enc(bytes(self.sk.verify_key))
+        self.sk = _Signer(raw[:32]); self.pub = b58enc(self.sk.pub_bytes)
         if len(raw) == 64 and b58enc(raw[32:]) != self.pub: raise ValueError("private key does not match its public half")
 
     def sign_tx(self, tx_b64):
@@ -86,7 +98,7 @@ class Wallet:
             b = tx[off]; n |= (b & 0x7F) << shift; off += 1; shift += 7
             if not b & 0x80: break
         msg = bytes(tx[off + 64 * n:])
-        tx[off:off + 64] = self.sk.sign(msg).signature
+        tx[off:off + 64] = self.sk.sign(msg)
         return base64.b64encode(bytes(tx)).decode()
 
 # ---------------- market data ----------------
