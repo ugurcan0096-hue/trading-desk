@@ -1,0 +1,233 @@
+{
+ "source": "https://api.hyperliquid.xyz/info",
+ "fetched": "2026-11-13T01:43:29Z",
+ "run_utc": "2026-11-13T01:59:21Z",
+ "permutations": 1000,
+ "results": [
+  {
+   "name": "B1 Donchian 20/10 breakout long",
+   "regime": 1,
+   "why": "Trend followers pile in late; breakouts in uptrends extend (herding, slow information).",
+   "IS": {
+    "ret": 0.07786529092277061,
+    "dd": -0.04009508295768949,
+    "trades": 21,
+    "win": 0.38095238095238093,
+    "pf": 2.161974862066978,
+    "sharpe": 1.0483020067418543,
+    "streak": 5,
+    "fees": 6.897960327117705,
+    "funding": 17.471267041052467,
+    "exposure": 0.2369556688897607
+   },
+   "IS_p": 0.15084915084915085
+  },
+  {
+   "name": "B2 Donchian 55/20 breakout long",
+   "regime": 1,
+   "why": "Same as B1, slower; fewer false breaks.",
+   "IS": {
+    "ret": 0.054374677678600936,
+    "dd": -0.03921856820590475,
+    "trades": 16,
+    "win": 0.5625,
+    "pf": 1.8104882295425706,
+    "sharpe": 0.7043118837610564,
+    "streak": 3,
+    "fees": 5.6886588542599466,
+    "funding": 18.857393554922023,
+    "exposure": 0.23303256178893683
+   },
+   "IS_p": 0.25874125874125875
+  },
+  {
+   "name": "B3 EMA20 pullback long",
+   "regime": 1,
+   "why": "Dip buyers in uptrends; weak hands sell the pullback to trend holders.",
+   "IS": {
+    "ret": 0.10692244879034707,
+    "dd": -0.049944716792401755,
+    "trades": 27,
+    "win": 0.48148148148148145,
+    "pf": 2.2368504922420493,
+    "sharpe": 1.1191451527169185,
+    "streak": 3,
+    "fees": 11.474256837433785,
+    "funding": 23.1472214046176,
+    "exposure": 0.2232247940368772
+   },
+   "IS_p": 0.11488511488511488
+  },
+  {
+   "name": "B4 RSI 40 pullback long",
+   "regime": 1,
+   "why": "Buy short-term oversold inside a long-term uptrend.",
+   "IS": {
+    "ret": -0.0015066256504928655,
+    "dd": -0.03287528123622441,
+    "trades": 16,
+    "win": 0.375,
+    "pf": 0.9819876219311949,
+    "sharpe": -0.008198620397528878,
+    "streak": 3,
+    "fees": 5.494901440239955,
+    "funding": 3.4527408981195813,
+    "exposure": 0.06826206355433503
+   }
+  },
+  {
+   "name": "B5 30-day momentum long",
+   "regime": 1,
+   "why": "Time-series momentum: documented across assets; paid by late reactors.",
+   "IS": {
+    "ret": 0.09115927431673754,
+    "dd": -0.06292933289830849,
+    "trades": 47,
+    "win": 0.40425531914893614,
+    "pf": 1.5521372187017357,
+    "sharpe": 1.0275256902133632,
+    "streak": 5,
+    "fees": 12.490149555315583,
+    "funding": 24.87333914042799,
+    "exposure": 0.36720282463711257
+   },
+   "IS_p": 0.13886113886113885
+  },
+  {
+   "name": "F1 Bollinger 20/2 reversion",
+   "regime": 0,
+   "why": "In ranges, liquidity providers get paid for absorbing overshoots.",
+   "IS": {
+    "ret": -0.03561816119602501,
+    "dd": -0.08265370963327068,
+    "trades": 79,
+    "win": 0.46835443037974683,
+    "pf": 0.9057773552022101,
+    "sharpe": -0.3709895042851565,
+    "streak": 5,
+    "fees": 41.83719033954998,
+    "funding": -0.7428381886172979,
+    "exposure": 0.10513927030207924
+   }
+  },
+  {
+   "name": "F2 RSI 30/70 reversion",
+   "regime": 0,
+   "why": "Same idea as F1 with a momentum oscillator.",
+   "IS": {
+    "ret": -0.023151097789345765,
+    "dd": -0.03897693186686424,
+    "trades": 28,
+    "win": 0.4642857142857143,
+    "pf": 0.8028521615710132,
+    "sharpe": -0.4379663545824817,
+    "streak": 3,
+    "fees": 14.44173462589179,
+    "funding": -0.8166023260354778,
+    "exposure": 0.031777167516673206
+   }
+  },
+  {
+   "name": "F3 30-bar range fade",
+   "regime": 0,
+   "why": "Buy range floor, sell range ceiling while ADX<20.",
+   "IS": {
+    "ret": -0.15133498790638322,
+    "dd": -0.1705808597332492,
+    "trades": 68,
+    "win": 0.39705882352941174,
+    "pf": 0.5417635748262551,
+    "sharpe": -1.8238824517138343,
+    "streak": 5,
+    "fees": 31.789677639618183,
+    "funding": -1.9180778452835934,
+    "exposure": 0.09611612397018439
+   }
+  },
+  {
+   "name": "R1 Donchian 20/10 breakdown short",
+   "regime": -1,
+   "why": "Forced sellers (liquidations, stops) push breakdowns further.",
+   "IS": {
+    "ret": -0.06672645858054593,
+    "dd": -0.0940626493797897,
+    "trades": 15,
+    "win": 0.13333333333333333,
+    "pf": 0.3042890360329123,
+    "sharpe": -1.1899930305484283,
+    "streak": 8,
+    "fees": 3.8237334182882723,
+    "funding": -2.482087240543011,
+    "exposure": 0.09297763828952531
+   }
+  },
+  {
+   "name": "R2 Donchian 55/20 breakdown short",
+   "regime": -1,
+   "why": "Slower version of R1.",
+   "IS": {
+    "ret": -0.08996133242769622,
+    "dd": -0.09952160216428252,
+    "trades": 13,
+    "win": 0.07692307692307693,
+    "pf": 0.13365166522319155,
+    "sharpe": -1.80977061427958,
+    "streak": 9,
+    "fees": 3.337585719843247,
+    "funding": -1.936071085251889,
+    "exposure": 0.07728520988622989
+   }
+  },
+  {
+   "name": "R3 RSI 60 rally-fade short",
+   "regime": -1,
+   "why": "Rallies in downtrends are sold by trapped longs exiting at breakeven.",
+   "IS": {
+    "ret": -0.030291791728635387,
+    "dd": -0.04522921633599186,
+    "trades": 10,
+    "win": 0.2,
+    "pf": 0.22626406564170332,
+    "sharpe": -0.8073418759221868,
+    "streak": 5,
+    "fees": 2.996276206025035,
+    "funding": -0.6663261061661501,
+    "exposure": 0.02785406041584935
+   }
+  },
+  {
+   "name": "R4 EMA20 rejection short",
+   "regime": -1,
+   "why": "Short failed rallies to the falling EMA20.",
+   "IS": {
+    "ret": -0.08454401012222457,
+    "dd": -0.14940352514545718,
+    "trades": 27,
+    "win": 0.2222222222222222,
+    "pf": 0.3157057583354181,
+    "sharpe": -0.9259183824495006,
+    "streak": 8,
+    "fees": 8.243396627055223,
+    "funding": -4.775343535087863,
+    "exposure": 0.1275009807767752
+   }
+  },
+  {
+   "name": "R5 30-day momentum short",
+   "regime": -1,
+   "why": "Time-series momentum on the short side.",
+   "IS": {
+    "ret": -0.04378672878799539,
+    "dd": -0.09723997038144316,
+    "trades": 31,
+    "win": 0.3225806451612903,
+    "pf": 0.5303155662993682,
+    "sharpe": -0.5365639274986939,
+    "streak": 9,
+    "fees": 6.690917832341415,
+    "funding": -5.057872338026725,
+    "exposure": 0.20125539427226363
+   }
+  }
+ ]
+}

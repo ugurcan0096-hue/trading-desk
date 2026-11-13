@@ -1,0 +1,48 @@
+# Paper-only trading lab. No exchange keys, no order code. State lives on branch `lab-paper`.
+# Times are UTC: 06:30 UTC = 07:30 Berlin (winter), 20:00 UTC = 21:00 Berlin (winter).
+name: paper-lab
+on:
+  schedule:
+    - cron: '7 * * * *'     # every hour: Sentinel + paper challengers
+    - cron: '30 6 * * *'    # morning brief
+    - cron: '0 20 * * *'    # nightly research (Scout/Judge)
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: paper-lab
+  cancel-in-progress: false
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet numpy pandas
+      - name: Restore paper state from lab-paper
+        run: |
+          git config user.name "paper-lab"; git config user.email "paper-lab@users.noreply.github.com"
+          if git fetch --depth 1 origin lab-paper; then git worktree add out FETCH_HEAD && git -C out checkout -B lab-paper
+          else git worktree add --orphan -b lab-paper out; fi
+          mkdir -p out/paper; rm -rf lab/paper; cp -r out/paper lab/paper
+      - name: Paper bot (hourly)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          cd lab
+          if [ "${{ github.event.schedule }}" = "30 6 * * *" ]; then python3 paper_bot.py --brief; else python3 paper_bot.py; fi
+      - name: Nightly research
+        if: github.event.schedule == '0 20 * * *' || github.event_name == 'workflow_dispatch'
+        run: |
+          cd lab && python3 fetch_hl.py BTC && python3 research.py 1000 | tee paper/research_latest.txt
+          cp results.json paper/research_results.json
+      - name: Save state
+        run: |
+          cp -r lab/paper/. out/paper/
+          cd out && git add paper
+          git diff --cached --quiet || git commit -qm "paper-lab update $(date -u +%FT%TZ)"
+          for i in 1 2 3; do git push origin HEAD:lab-paper && break; sleep $((i*5)); done
