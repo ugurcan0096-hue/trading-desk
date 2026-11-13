@@ -6,6 +6,7 @@ if [ "$1" = "install" ]; then
   echo "Done. Long-press your home screen -> Widgets -> Termux:Widget -> pick 'Memebot'."; exit 0
 fi
 termux-wake-lock 2>/dev/null
+trap "true" INT   # CTRL+c stops the bot but returns to this menu
 while true; do
   clear
   echo "=========== MEMEBOT ==========="
