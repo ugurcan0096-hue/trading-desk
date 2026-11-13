@@ -19,7 +19,7 @@ plus ~0.002 SOL rent for each new token account (returned only if the account is
 ```
 pkg install python git
 pip install pynacl
-git clone https://github.com/ugurcan0096-hue/trading-desk && cd trading-desk/bot
+git clone -b claude/new-session-5romvj https://github.com/ugurcan0096-hue/trading-desk && cd trading-desk/bot
 termux-wake-lock          # keep running with the screen off
 python3 memebot.py        # DRY-RUN: fake $13, real prices. Run this for a few days first.
 ```
