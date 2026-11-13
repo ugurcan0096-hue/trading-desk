@@ -82,6 +82,30 @@ class _Signer:
             self.pub_bytes = k.public_key().public_bytes(ser.Encoding.Raw, ser.PublicFormat.Raw); self._sign = k.sign
     def sign(self, m): return self._sign(m)
 
+def mnemonic_seed(words, passphrase=""):
+    """BIP39: words -> 64-byte seed (stdlib only)."""
+    import hashlib, unicodedata
+    m = unicodedata.normalize("NFKD", " ".join(words.split())).encode()
+    return hashlib.pbkdf2_hmac("sha512", m, b"mnemonic" + unicodedata.normalize("NFKD", passphrase).encode(), 2048)
+
+def slip10_ed25519(seed, path):
+    """SLIP-0010 ed25519 derivation, hardened indices only. Phantom/Solflare use m/44'/501'/i'/0'."""
+    import hmac, hashlib, struct
+    I = hmac.new(b"ed25519 seed", seed, hashlib.sha512).digest(); k, c = I[:32], I[32:]
+    for i in path:
+        I = hmac.new(c, b"\0" + k + struct.pack(">I", i | 0x80000000), hashlib.sha512).digest(); k, c = I[:32], I[32:]
+    return k
+
+def wallet_from_phrase(words, address, max_index=20):
+    """Find the account whose address matches (full address, or 'start...end' like F8QRhE...GkdeY5)."""
+    seed = mnemonic_seed(words)
+    a = address.strip(); start, _, end = a.partition("...") if "..." in a else (a, "", a)
+    for i in range(max_index):
+        k = slip10_ed25519(seed, [44, 501, i, 0])
+        pub = b58enc(_Signer(k).pub_bytes)
+        if pub.startswith(start) and pub.endswith(end): return Wallet(b58enc(k)), i
+    raise ValueError("no account with that address in the first 20 accounts of this phrase - check the words and the address")
+
 class Wallet:
     def __init__(self, secret_b58):
         raw = b58dec(secret_b58.strip())
@@ -304,9 +328,12 @@ def step(s, wallet):
 def main():
     wallet = None
     if LIVE:
-        key = os.environ.get("SOLANA_PRIVATE_KEY")
-        if not key: sys.exit("LIVE=1 needs SOLANA_PRIVATE_KEY (use a fresh wallet holding only your trading money)")
-        wallet = Wallet(key)
+        key, phrase = os.environ.get("SOLANA_PRIVATE_KEY"), os.environ.get("SOLANA_PHRASE")
+        if key: wallet = Wallet(key)
+        elif phrase:
+            wallet, idx = wallet_from_phrase(phrase, os.environ.get("WALLET_ADDRESS", ""))
+            log(f"phrase: matched account #{idx + 1}")
+        else: sys.exit("LIVE=1 needs SOLANA_PRIVATE_KEY, or SOLANA_PHRASE + WALLET_ADDRESS (a wallet holding only your trading money)")
     else:
         class W: pub = "dry-run"
         wallet = W()

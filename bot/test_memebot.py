@@ -63,3 +63,15 @@ assert st["closed"] and st["closed"][0]["reason"] == "take-profit", st["closed"]
 assert "Tok1" not in st["positions"], "re-bought during cooldown"
 print("closed trade:", {k: (round(v, 3) if isinstance(v, float) else v) for k, v in st["closed"][0].items() if k != "closed"})
 print("ALL TESTS PASSED")
+
+# BIP39 vector (Trezor): 'abandon x11 about' + passphrase TREZOR
+assert m.mnemonic_seed("abandon "*11 + "about", "TREZOR").hex().startswith("c55257c360c07c72029aebc1b53c05ed0362ada38ead3e3e9efa3708e53495531f09a6987599d18264c1e1c92f2cf141630c7a3c4ab7c81b2f001698e7463b04"[:32])
+# SLIP-0010 ed25519 test vector 1
+sd = bytes.fromhex("000102030405060708090a0b0c0d0e0f")
+assert m.slip10_ed25519(sd, []).hex() == "2b4be7f19ee27bbf30c667b642d5f4aa69fd169872f8fc3059c08ebae2eb19e7"
+assert m.slip10_ed25519(sd, [0]).hex() == "68e0fe46dfb67e368c75379acec591dad19df3cde26e63b93a8e704f1dade7a3"
+# address matching by 'start...end' finds the right account index
+ph = "abandon "*11 + "about"
+k3 = m.slip10_ed25519(m.mnemonic_seed(ph), [44, 501, 3, 0]); a3 = m.b58enc(m._Signer(k3).pub_bytes)
+w3, i3 = m.wallet_from_phrase(ph, a3[:6] + "..." + a3[-6:]); assert i3 == 3 and w3.pub == a3
+print("PHRASE TESTS PASSED")

@@ -35,9 +35,16 @@ PY
        read -rp "Type LIVE to confirm real-money trading: " ok; [ "$ok" = "LIVE" ] || continue
        python3 -c "import cryptography" 2>/dev/null || python3 -c "import nacl" 2>/dev/null || pkg install -y python-cryptography
        [ -f state.json ] && grep -q '"mode": "dry"' state.json && mv state.json "state-dry-$(date +%s).json"
-       read -rsp "Paste private key (hidden), then Enter: " SOLANA_PRIVATE_KEY; echo
-       SOLANA_PRIVATE_KEY="$SOLANA_PRIVATE_KEY" LIVE=1 python3 memebot.py
-       unset SOLANA_PRIVATE_KEY ;;
+       echo "a) Private key   b) Recovery phrase (12 words)"; read -rp "a or b: " kind
+       if [ "$kind" = "b" ]; then
+         read -rp "Wallet address (Phantom -> Erhalten -> Adresse kopieren): " WALLET_ADDRESS
+         read -rsp "Paste the 12 words (hidden), then Enter: " SOLANA_PHRASE; echo
+         SOLANA_PHRASE="$SOLANA_PHRASE" WALLET_ADDRESS="$WALLET_ADDRESS" LIVE=1 python3 memebot.py
+       else
+         read -rsp "Paste private key (hidden), then Enter: " SOLANA_PRIVATE_KEY; echo
+         SOLANA_PRIVATE_KEY="$SOLANA_PRIVATE_KEY" LIVE=1 python3 memebot.py
+       fi
+       unset SOLANA_PRIVATE_KEY SOLANA_PHRASE ;;
     3) tail -n 20 bot.log 2>/dev/null || echo "no log yet"; read -rp "Enter to go back" _ ;;
     4) git -C .. pull --ff-only; read -rp "Enter to go back" _ ;;
     5) rm -f STOP; [ -f state.json ] && python3 -c "
