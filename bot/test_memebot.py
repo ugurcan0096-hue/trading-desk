@@ -117,3 +117,29 @@ for ext, ok in cases:
     assert m.token_safety("T")[0] == ok, ext
 assert "slippage" in m.short_err(RuntimeError("custom program error: 0x1771"))
 print("TOKEN-2022 + ERROR TESTS PASSED")
+
+# CloseAccount tx: structure + valid signature
+sk2 = SigningKey.generate(); w2 = m.Wallet(m.b58enc(bytes(sk2)))
+ta, bh = m.b58enc(os.urandom(32)), m.b58enc(os.urandom(32))
+raw = base64.b64decode(m.close_account_tx(w2, ta, m.TOKEN_PROGRAMS[0], bh))
+assert raw[0] == 1; sig, msg = raw[1:65], raw[65:]
+sk2.verify_key.verify(msg, sig)
+assert msg[:3] == bytes([1, 0, 1]) and msg[3] == 3
+assert msg[4:36] == m.b58dec(w2.pub) and msg[36:68] == m.b58dec(ta) and msg[68:100] == m.b58dec(m.TOKEN_PROGRAMS[0])
+assert msg[100:132] == m.b58dec(bh) and msg[132:] == bytes([1, 2, 3, 1, 0, 0, 1, 9])
+assert m.shortvec(300) == bytes([0xAC, 0x02])
+# cleanup closes only empty, non-held accounts
+sent = []
+def fake_http3(url, body=None, tries=3):
+    meth = body["method"]
+    if meth == "getTokenAccountsByOwner":
+        if body["params"][1]["programId"] != m.TOKEN_PROGRAMS[0]: return {"result": {"value": []}}
+        mk = lambda pk, mint, amt: {"pubkey": pk, "account": {"lamports": 2039280, "data": {"parsed": {"info": {"mint": mint, "tokenAmount": {"amount": amt}}}}}}
+        return {"result": {"value": [mk(m.b58enc(b"\1"*32), "MintA", "0"), mk(m.b58enc(b"\2"*32), "MintB", "5"), mk(m.b58enc(b"\3"*32), "MintC", "0")]}}
+    if meth == "getLatestBlockhash": return {"result": {"value": {"blockhash": bh}}}
+    if meth == "sendTransaction": sent.append(1); return {"result": "SIG"}
+    raise AssertionError(meth)
+m.http = fake_http3
+got = m.close_empty_accounts(w2, keep_mints={"MintC"})
+assert len(sent) == 1 and abs(got - 0.00203928) < 1e-9, (sent, got)
+print("CLOSE-ACCOUNT TESTS PASSED")

@@ -299,6 +299,38 @@ def token_balance(owner, mint):
     r = rpc("getTokenAccountsByOwner", [owner, {"mint": mint}, {"encoding": "jsonParsed", "commitment": "confirmed"}])
     return sum(int(a["account"]["data"]["parsed"]["info"]["tokenAmount"]["amount"]) for a in r["value"])
 
+TOKEN_PROGRAMS = ("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")
+
+def shortvec(n):
+    out = bytearray()
+    while True:
+        b = n & 0x7F; n >>= 7
+        out.append(b | (0x80 if n else 0))
+        if not n: return bytes(out)
+
+def close_account_tx(wallet, token_account, program, blockhash):
+    """Legacy tx with one SPL CloseAccount (instruction 9): rent goes back to the owner, who also signs."""
+    keys = [b58dec(wallet.pub), b58dec(token_account), b58dec(program)]
+    msg = (bytes([1, 0, 1]) + shortvec(3) + b"".join(keys) + b58dec(blockhash) + shortvec(1)
+           + bytes([2]) + shortvec(3) + bytes([1, 0, 0]) + shortvec(1) + bytes([9]))
+    return base64.b64encode(shortvec(1) + wallet.sk.sign(msg) + msg).decode()
+
+def close_empty_accounts(wallet, keep_mints=()):
+    """Close token accounts with 0 balance and reclaim their rent (~0.002 SOL each). Returns SOL reclaimed."""
+    got = 0
+    for prog in TOKEN_PROGRAMS:
+        try: accs = rpc("getTokenAccountsByOwner", [wallet.pub, {"programId": prog}, {"encoding": "jsonParsed", "commitment": "confirmed"}])["value"]
+        except Exception as e: log(f"cleanup: list failed: {short_err(e)}"); continue
+        for a in accs:
+            info = (((a.get("account") or {}).get("data") or {}).get("parsed") or {}).get("info") or {}
+            if (info.get("tokenAmount") or {}).get("amount") != "0" or not info.get("mint") or info["mint"] in keep_mints: continue
+            try:
+                bh = rpc("getLatestBlockhash", [{"commitment": "confirmed"}])["value"]["blockhash"]
+                sig = rpc("sendTransaction", [close_account_tx(wallet, a["pubkey"], prog, bh), {"encoding": "base64"}])
+                got += a["account"]["lamports"] / 1e9; log(f"cleanup: closed empty token account, +{a['account']['lamports']/1e9:.4f} SOL tx {sig}")
+            except Exception as e: log(f"cleanup: could not close {a['pubkey'][:8]}...: {short_err(e)}")
+    return got
+
 def position_value_usd(pos, sol_px):
     q = jup_quote(pos["mint"], SOL, pos["amount"])
     return int(q["outAmount"]) / 1e9 * sol_px, q
@@ -321,6 +353,9 @@ def step(s, wallet):
             s["closed"].append(dict(symbol=pos["symbol"], mint=mint, pnl_usd=val - pos["cost_usd"], pnl_pct=pnl,
                                     reason=why, held_min=round(held), sig=sig, closed=now))
             del s["positions"][mint]
+            if LIVE:
+                try: time.sleep(2); close_empty_accounts(wallet, keep_mints=set(s["positions"]))
+                except Exception as e: log(f"cleanup failed: {short_err(e)}")
             notify(f"SELL {pos['symbol']} {why}: {pnl:+.1%} (${val - pos['cost_usd']:+.2f}) tx {sig}")
         else:
             pos_val += val
@@ -387,6 +422,9 @@ def main():
     if s.get("mode") != ("live" if LIVE else "dry"):
         sys.exit(f"state.json belongs to {s.get('mode')} mode; move it away before switching modes")
     log(f"start; wallet {wallet.pub}; size ${POS_USD}, stop -{STOP_LOSS:.0%}, target +{TAKE_PROFIT:.0%}, halt at -{DD_HALT:.0%}")
+    if LIVE:
+        got = close_empty_accounts(wallet, keep_mints=set(s["positions"]))
+        if got: notify(f"cleanup: reclaimed {got:.4f} SOL rent from empty token accounts")
     fails = 0
     while not os.path.exists(os.path.join(HERE, "STOP")):
         try:
