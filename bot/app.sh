@@ -37,6 +37,10 @@ PY
        [ -f state.json ] && grep -q '"mode": "dry"' state.json && mv state.json "state-dry-$(date +%s).json"
        echo "Mode: n) Normal (strict)   x) Aktiv (more trades, more risk)"; read -rp "n or x: " md
        if [ "$md" = "x" ]; then export MIN_LIQ_USD=10000 MIN_AGE_H=2 H1_MIN=3 H1_MAX=60 BUY_RATIO=1.05; echo "Aktiv mode."; fi
+       read -rp "Dollars per trade (Enter = 4, max 8): " sz
+       case "$sz" in ''|*[!0-9.]*) sz=4 ;; esac
+       if python3 -c "import sys; sys.exit(0 if float('$sz') <= 8 else 1)"; then export POS_USD="$sz"; else echo "Max is 8 - using 8."; export POS_USD=8; fi
+       echo "Trade size: \$$POS_USD"
        echo "a) Private key   b) Recovery phrase (12 words)"; read -rp "a or b: " kind
        if [ "$kind" = "b" ]; then
          read -rp "Wallet address (Phantom -> Erhalten -> Adresse kopieren): " WALLET_ADDRESS
@@ -46,7 +50,7 @@ PY
          read -rsp "Paste private key (hidden), then Enter: " SOLANA_PRIVATE_KEY; echo
          SOLANA_PRIVATE_KEY="$SOLANA_PRIVATE_KEY" LIVE=1 python3 memebot.py
        fi
-       unset SOLANA_PRIVATE_KEY SOLANA_PHRASE MIN_LIQ_USD MIN_AGE_H H1_MIN H1_MAX BUY_RATIO ;;
+       unset SOLANA_PRIVATE_KEY SOLANA_PHRASE MIN_LIQ_USD MIN_AGE_H H1_MIN H1_MAX BUY_RATIO POS_USD ;;
     3) tail -n 20 bot.log 2>/dev/null || echo "no log yet"; read -rp "Enter to go back" _ ;;
     4) git -C .. pull --ff-only; read -rp "Enter to go back" _ ;;
     5) rm -f STOP; [ -f state.json ] && python3 -c "
