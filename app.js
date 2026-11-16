@@ -399,6 +399,7 @@
         <div class="kv"><span class="k">Take-Profit</span><span class="v">+${fmt(s.take_profit_pct||a.take_profit_pct||300, 0)}&nbsp;%</span></div>
         <div class="kv"><span class="k">Telegram</span><span class="v">${a.telegram || s.telegram ? "verbunden" : "—"}</span></div>
       </div></div>
+      <p class="note"><a href="sniper/">Meme Sniper (Paper) öffnen →</a></p>
       <p class="note">Einstellungen und Befehle laufen über Telegram. Diese App ist schreibgeschützt. Zum Startbildschirm hinzufügen: Browser-Menü → <em>Zum Startbildschirm</em>.</p>`;
   }
 
