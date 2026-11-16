@@ -25,19 +25,37 @@
   let lastName = store.get("yorunge_name", "");
 
   /* ---------- leaderboard (top 10 on this phone) ---------- */
+  // One row per name (its best score). Names compare without case/extra spaces.
+  const nameKey = (n) => String(n || "").trim().toLocaleLowerCase();
+  function dedupe(rows) {
+    const best = new Map();
+    for (const r of rows) {
+      const k = nameKey(r.n), cur = best.get(k);
+      if (!cur || r.s > cur.s || (r.s === cur.s && r.d < cur.d)) best.set(k, r);
+    }
+    return [...best.values()].sort((a, b) => b.s - a.s || a.d - b.d).slice(0, 10);
+  }
   function loadBoard() {
-    try { const b = JSON.parse(store.get("yorunge_board", "[]")); return Array.isArray(b) ? b.filter((r) => r && typeof r.s === "number").slice(0, 10) : []; }
-    catch (e) { return []; }
+    try {
+      const b = JSON.parse(store.get("yorunge_board", "[]"));
+      return Array.isArray(b) ? dedupe(b.filter((r) => r && typeof r.s === "number" && typeof r.n === "string")) : [];
+    } catch (e) { return []; }
   }
   let board = loadBoard();
-  function qualifies(s) { return s > 0 && (board.length < 10 || s > board[board.length - 1].s); }
+  function qualifies(s) {
+    if (!(s > 0)) return false;
+    const mine = lastName ? board.find((r) => nameKey(r.n) === nameKey(lastName)) : null;
+    if (mine) return s > mine.s;                 // only a new personal best updates your row
+    return board.length < 10 || s > board[board.length - 1].s;
+  }
   function addToBoard(name, s) {
-    const row = { n: String(name || T("player")).trim().slice(0, 14) || T("player"), s, d: Date.now() };
-    board.push(row);
-    board.sort((a, b) => b.s - a.s || a.d - b.d);
-    board = board.slice(0, 10);
+    const n = String(name || T("player")).trim().slice(0, 14) || T("player");
+    let row = board.find((r) => nameKey(r.n) === nameKey(n));
+    if (row) { if (s > row.s) { row.s = s; row.d = Date.now(); row.n = n; } }
+    else { row = { n, s, d: Date.now() }; board.push(row); }
+    board = dedupe(board);
     store.set("yorunge_board", JSON.stringify(board));
-    return row;
+    return board.includes(row) ? row : null;
   }
   function boardHTML(highlight) {
     if (!board.length) return `<div class="empty">${T("noScores")}</div>`;
