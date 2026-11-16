@@ -167,3 +167,7 @@ html, body { overscroll-behavior-y: none; }
 .status.bad { border-color: rgba(255,77,94,.6); background: var(--red-d); }
 .status.bad b { color: var(--red); } .status.bad .sdot { background: var(--red); }
 @keyframes pulse { 50% { opacity: .3; } }
+.cta.col { flex-direction: column; }
+.btn.big { padding: 14px; font-size: 17px; }
+.btn.big small { display: block; font-size: 12px; font-weight: 500; opacity: .7; margin-top: 2px; }
+.errbar { position: sticky; top: 0; z-index: 60; background: #5a1520; color: #ffd6da; font: 12px/1.4 var(--mono); padding: calc(8px + var(--safe-t)) 12px 8px; }

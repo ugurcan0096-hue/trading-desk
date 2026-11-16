@@ -5,6 +5,13 @@
   const $ = (s, el) => (el || document).querySelector(s);
   const $$ = (s, el) => [...(el || document).querySelectorAll(s)];
   const appEl = $("#app");
+  function showFatal(msg) {
+    let bar = document.getElementById("errbar");
+    if (!bar) { bar = document.createElement("div"); bar.id = "errbar"; bar.className = "errbar"; document.body.prepend(bar); }
+    bar.textContent = "Hata: " + msg + " — ekran görüntüsü alıp gönder.";
+  }
+  window.addEventListener("error", (e) => showFatal((e.message || "bilinmeyen") + (e.lineno ? " (satır " + e.lineno + ")" : "")));
+  window.addEventListener("unhandledrejection", (e) => showFatal(String((e.reason && e.reason.message) || e.reason || "bilinmeyen")));
   const KEY = "sniper_state_v1", FEED_KEY = "sniper_feed";
   const { kfmt, pfmt } = E;
 
@@ -140,6 +147,14 @@
     } catch (e) {}
   }
 
+  function hello() {
+    const el = $("#toast");
+    el.className = "toast";
+    el.innerHTML = `<div class="av">◎</div><div class="nm"><b>Bot başladı</b><span>${feedMode === "demo" ? "demo · gece hızlı akıyor" : "gerçek coinler taranıyor"}</span></div>`;
+    buzz([30]);
+    clearTimeout(toastT);
+    toastT = setTimeout(() => el.classList.add("hidden"), 2500);
+  }
   let toastT = null;
   function toast(r) {
     const el = $("#toast");
@@ -277,8 +292,11 @@
     if (st.status === "live") return `<div class="cta"><button class="btn stop" data-act="stop">Durdur</button></div>`;
     const managingNote = st.positions.length ? `<p class="note">Durduruldu: yeni alım yok. Açık ${st.positions.length} pozisyon stop / trail ile takip ediliyor.</p>` : "";
     if (st.status === "locked") return `<div class="cta"><button class="btn go" data-act="again">Bu gece aynı $${st.cfg.budget}?</button></div>`;
-    return `<div class="seg" style="margin-bottom:8px">${[20, 50, 100].map((b) => `<button data-budget="${b}" class="${st.cfg.budget === b ? "on" : ""}" ${st.startedAt ? "disabled" : ""}>$${b}</button>`).join("")}</div>
-      <div class="cta"><button class="btn go" data-act="start">${st.startedAt ? "Devam et" : "Başlat · $" + st.cfg.budget + " paper"}</button></div>` + managingNote;
+    return `<div class="seg" style="margin-bottom:8px">${[20, 50, 100].map((b) => `<button data-budget="${b}" class="${st.cfg.budget === b ? "on" : ""}" ${st.startedAt ? "disabled" : ""}>$${b}</button>`).join("")}</div>` +
+      (st.startedAt
+        ? `<div class="cta"><button class="btn go" data-act="start">▶ Devam et</button></div>`
+        : `<div class="cta col"><button class="btn go big" data-act="startdemo">⚡ Demo başlat<small>videodaki gibi hızlı · sahte coinler</small></button>
+           <button class="btn big" data-act="startlive">▶ Canlı başlat<small>gerçek Solana coinleri · sanal para</small></button></div>`) + managingNote;
   }
 
   function finalCard() {
@@ -292,7 +310,7 @@
     const ago = (t) => t ? Math.max(0, Math.round((Date.now() - t) / 1000)) + " sn önce" : "henüz yok";
     const bad = !!lastErr;
     const src = feedMode === "demo" ? "demo veri" : (bad ? "VERİ YOK: " + esc(lastErr) : (diag.okAt ? "DexScreener bağlı" : "bağlanıyor…"));
-    return `<div class="card status ${bad ? "bad" : ""}"><span class="sdot"></span><div><b>${src}</b><span>Son tarama ${ago(diag.scanAt)} · son taramada ${diag.found} coin · ${diag.scans} tarama · ${st.stats.scanned} coin incelendi</span></div></div>`;
+    return `<div class="card status ${bad ? "bad" : ""}"><span class="sdot"></span><div><b>${src}</b><span>Son tarama ${ago(diag.scanAt)} · son taramada ${diag.found} coin · ${diag.scans} tarama · ${st.stats.scanned} coin incelendi</span>${bad ? `<button class="btn sm go" data-act="startdemo" style="margin-top:8px">⚡ Demo ile dene</button>` : ""}</div></div>`;
   }
 
   function warnings() {
@@ -425,7 +443,17 @@
     const now = clock(), a = t.dataset.act;
     if (a === "reload") { location.reload(); return; }
     if (a === "install") { const ev = installEvt; installEvt = null; if (ev) { ev.prompt(); ev.userChoice.finally(paint); } return; }
-    if (a === "start") { startBot(now); grabWake(); lastDiscover = 0; save(); paint(); step(); }
+    if (a === "start") { startBot(now); grabWake(); lastDiscover = 0; save(); paint(); hello(); step(); }
+    else if (a === "startdemo" || a === "startlive") {
+      const want = a === "startdemo" ? "demo" : "live";
+      if (want !== feedMode || st.startedAt) {
+        feedMode = want; store.set(FEED_KEY, feedMode); feed = makeFeed(); fresh.length = 0; lastErr = ""; errCount = 0;
+        st = E.newState(st.cfg, Date.now());
+        if (feedMode === "demo") st.simNow = Date.now();
+      }
+      if (tab !== "home") setTab("home");
+      startBot(clock()); grabWake(); lastDiscover = 0; save(); paint(); hello(); step();
+    }
     else if (a === "stop") { E.stop(st, now); releaseWake(); save(); paint(); }
     else if (a === "again") { st = E.newState(st.cfg, now); if (feedMode === "demo") st.simNow = now; startBot(now); grabWake(); lastDiscover = 0; fresh.length = 0; save(); paint(); }
     else if (a === "reset") { if (confirm("Tüm paper geçmişi silinsin mi?")) { st = E.newState(st.cfg, now); fresh.length = 0; save(); goHome(); } }
