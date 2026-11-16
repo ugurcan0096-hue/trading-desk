@@ -20,26 +20,53 @@
       touch-action: none; user-select: none; -webkit-user-select: none; overscroll-behavior: none; }
     canvas { position: fixed; inset: 0; display: block; }
     .hide { display: none !important; }
-    .layer { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px 16px; text-align: center; pointer-events: none; }
-    .layer button { pointer-events: auto; }
+    .layer { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px 16px; text-align: center; pointer-events: none; }
+    .layer button, .layer input, .layer .panel { pointer-events: auto; }
     h1 { margin: 0; font-size: clamp(44px, 13vw, 76px); letter-spacing: -0.03em; font-weight: 900;
-      background: linear-gradient(180deg, #fff, #b8a4ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      background: linear-gradient(180deg, #fff, #b8a4ff); -webkit-background-clip: text; background-clip: text; color: transparent;
+      filter: drop-shadow(0 6px 24px rgba(140,110,255,.45)); }
     .sub { color: var(--muted); font-size: 15px; max-width: 300px; line-height: 1.45; }
-    .btn { font: 800 20px/1 inherit; font-family: inherit; color: #120c2e; background: var(--gold); border: 0; border-radius: 999px; padding: 16px 34px; cursor: pointer; box-shadow: 0 8px 30px rgba(255,216,77,.35); }
+    .btn { font: 800 20px/1 inherit; font-family: inherit; color: #120c2e; background: linear-gradient(180deg, #ffe680, #ffc93d); border: 0; border-radius: 999px; padding: 16px 34px; cursor: pointer; box-shadow: 0 8px 30px rgba(255,216,77,.35); }
     .btn:active { transform: scale(.96); }
-    .btn.ghost { background: rgba(255,255,255,.1); color: var(--text); box-shadow: none; font-size: 16px; padding: 12px 22px; }
-    .spacer { height: 32vh; }
-    #menu .spacer { height: 40vh; }
+    .btn.ghost { background: rgba(255,255,255,.1); color: var(--text); box-shadow: none; font-size: 16px; padding: 12px 20px; }
+    .spacer { height: 30vh; }
+    #menu .spacer { height: 34vh; }
     .big { font-size: clamp(64px, 20vw, 110px); font-weight: 900; line-height: 1; }
-    .row { display: flex; gap: 10px; }
-    #hud { position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); left: 0; right: 0; text-align: center; pointer-events: none; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    #hud { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); left: 0; right: 0; text-align: center; pointer-events: none; }
     #score { font-size: 54px; font-weight: 900; text-shadow: 0 4px 24px rgba(124,242,255,.35); display: inline-block; }
     #score.pop { animation: pop .18s ease-out; }
     @keyframes pop { 50% { transform: scale(1.18); } }
-    #best { color: var(--muted); font-size: 13px; font-weight: 700; }
+    #best, #level { color: var(--muted); font-size: 13px; font-weight: 700; }
+    #level { color: var(--cyan); }
     #mute { position: fixed; z-index: 5; top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; width: 42px; height: 42px; border-radius: 50%; border: 0; background: rgba(255,255,255,.08); font-size: 18px; color: #fff; cursor: pointer; }
-    .newbest { color: var(--gold); font-weight: 900; font-size: 18px; letter-spacing: .04em; }
+    .newbest { color: var(--gold); font-weight: 900; font-size: 18px; letter-spacing: .04em; animation: glow 1s ease-in-out infinite alternate; }
+    @keyframes glow { to { text-shadow: 0 0 18px rgba(255,216,77,.8); } }
+    .unlock { color: #7dffb0; font-weight: 800; font-size: 14px; }
     .hint { color: var(--muted); font-size: 13px; }
+    /* skins */
+    .skins { display: flex; gap: 8px; }
+    .skin { background: rgba(255,255,255,.07); border: 2px solid transparent; border-radius: 14px; padding: 8px 8px 6px; color: var(--text); display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 62px; cursor: pointer; font-family: inherit; }
+    .skin.on { border-color: var(--gold); background: rgba(255,216,77,.12); }
+    .skin.locked { opacity: .55; }
+    .skin .sw { width: 22px; height: 22px; border-radius: 50%; display: block; }
+    .skin small { font-size: 11px; font-weight: 700; }
+    .shake { animation: shk .35s; }
+    @keyframes shk { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+    /* leaderboard */
+    .panel { background: rgba(20,16,48,.92); border: 1px solid rgba(255,255,255,.1); border-radius: 18px; padding: 12px 14px; width: min(340px, 92vw); backdrop-filter: blur(8px); text-align: left; }
+    .panel h2 { margin: 2px 0 8px; font-size: 18px; text-align: center; }
+    .brow { display: flex; align-items: center; gap: 10px; padding: 7px 6px; border-radius: 10px; }
+    .brow + .brow { border-top: 1px solid rgba(255,255,255,.06); }
+    .brow.me { background: rgba(255,216,77,.16); }
+    .brow .rk { width: 26px; text-align: center; font-weight: 800; color: var(--muted); }
+    .brow .nm { flex: 1; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .brow .sc { font-weight: 900; color: var(--gold); font-variant-numeric: tabular-nums; }
+    .empty { color: var(--muted); text-align: center; padding: 10px; font-size: 14px; }
+    .namebox { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+    .namebox input { width: min(260px, 80vw); font: 700 18px inherit; font-family: inherit; padding: 12px 14px; border-radius: 12px; border: 2px solid rgba(255,216,77,.6); background: rgba(0,0,0,.35); color: #fff; text-align: center; user-select: text; -webkit-user-select: text; outline: none; }
+    #over .board-wrap { max-height: 34vh; overflow-y: auto; }
+    #board { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(4,3,12,.6); }
   </style>
 </head>
 <body>
@@ -51,25 +78,41 @@
     <div class="spacer"></div>
     <button id="play" class="btn">▶ Oyna</button>
     <div id="menuBest" class="hint"></div>
-    <button id="install" class="btn ghost hide">📲 Telefona yükle</button>
+    <div id="skins" class="skins"></div>
+    <div class="row">
+      <button id="openBoard" class="btn ghost">🏆 En İyiler</button>
+      <button id="install" class="btn ghost hide">📲 Telefona yükle</button>
+    </div>
   </div>
 
-  <div id="hud" class="hide"><div id="score">0</div><div id="best"></div></div>
+  <div id="hud" class="hide"><div id="score">0</div><div id="best"></div><div id="level"></div></div>
 
   <div id="over" class="layer hide">
     <div class="hint">SKOR</div>
     <div id="final" class="big">0</div>
     <div id="newBest" class="newbest hide">★ YENİ REKOR ★</div>
     <div class="hint">En iyi: <b id="finalBest">0</b></div>
-    <div class="spacer"></div>
-    <div class="row"><button id="again" class="btn">↻ Tekrar</button><button id="share" class="btn ghost">Paylaş</button></div>
-    <div class="hint">ya da ekrana dokun</div>
+    <div id="unlock" class="unlock hide"></div>
+    <div id="nameBox" class="namebox panel hide">
+      <h2>🏆 En İyiler'e girdin!</h2>
+      <input id="nameInput" type="text" maxlength="14" placeholder="Adını yaz" autocomplete="nickname" enterkeyhint="done">
+      <button id="saveName" class="btn">Kaydet</button>
+    </div>
+    <div class="board-wrap panel" id="overBoardWrap"><h2>🏆 En İyiler</h2><div id="overBoard"></div></div>
+    <div class="row"><button id="again" class="btn">↻ Tekrar</button><button id="share" class="btn ghost">Paylaş</button><button id="toMenu" class="btn ghost">Menü</button></div>
   </div>
 
+  <div id="board" class="hide"><div class="panel"><h2>🏆 En İyiler</h2><div id="boardList"></div><div class="row" style="margin-top:10px"><button id="closeBoard" class="btn ghost">Kapat</button></div></div></div>
+
   <button id="mute" aria-label="Ses">🔊</button>
-  <script src="game.js?v=1"></script>
+  <script src="game.js?v=2"></script>
   <script>
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
+      var hadController = !!navigator.serviceWorker.controller, reloaded = false;
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (!hadController || reloaded) return;
+        reloaded = true; location.reload();
+      });
       navigator.serviceWorker.register("./sw.js", { scope: "./", updateViaCache: "none" }).then(function (r) {
         try { var p = r.update(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
       }).catch(function () {});
