@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="theme-color" content="#0b0920">
+  <meta name="color-scheme" content="dark">
+  <meta name="darkreader-lock">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Orbit Dash">
@@ -15,7 +17,7 @@
   <style>
     :root { --text: #f3f1ff; --muted: #a9a3d6; --gold: #ffd84d; --cyan: #7cf2ff; --bg: #0b0920; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+    html, body { color-scheme: dark; margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
       font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       touch-action: none; user-select: none; -webkit-user-select: none; overscroll-behavior: none; }
     canvas { position: fixed; inset: 0; display: block; }
@@ -117,7 +119,7 @@
   <button id="mute" aria-label="Sound">🔊</button>
   <script src="i18n.js?v=2"></script>
   <script src="platform.js?v=3"></script>
-  <script src="game.js?v=9"></script>
+  <script src="game.js?v=10"></script>
   <script>
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       var hadController = !!navigator.serviceWorker.controller, reloaded = false;

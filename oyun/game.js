@@ -204,7 +204,12 @@
     ui.revive.disabled = true; ui.revive.textContent = T("adLoading");
     const ok = await PF.showAd("rewarded");
     adPlaying = false; lastAdAt = Date.now();
-    if (!ok) { const code = String(PF.lastAdError || "").slice(0, 24); ui.revive.textContent = T("noAd") + (code ? " (" + code + ")" : ""); ui.revive.disabled = false; return; }
+    if (!ok) {
+      const code = String(PF.lastAdError || "");
+      // ads switched off for this game (e.g. before launch): stop offering ads, no error on screen
+      if (/disabled/i.test(code)) { PF.adsAvailable = false; ui.revive.classList.add("hide"); return; }
+      ui.revive.textContent = T("noAd") + (code ? " (" + code.slice(0, 24) + ")" : ""); ui.revive.disabled = false; return;
+    }
     g.revived = true; g.dead = false; g.flash = 0; g.shake = 0;
     // clear the way and give a free shield
     g.items = g.items.filter((it) => it.kind !== "rock" || it.ang - g.ang > 1.6 || it.ang - g.ang < -0.2);
