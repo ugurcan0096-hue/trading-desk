@@ -93,7 +93,7 @@
     <div id="menuBest" class="hint"></div>
     <div id="skins" class="skins"></div>
     <div class="row">
-      <button id="openBoard" class="btn ghost" data-i18n="leaderboard">🏆 Top Players</button>
+      <button id="openBoard" class="btn ghost" data-i18n="leaderboard">🏆 My Best Scores</button>
       <button id="install" class="btn ghost hide" data-i18n="install">📲 Install</button>
     </div>
     <div class="row">
@@ -110,16 +110,16 @@
     <div class="hint"><span data-i18n="best">Best:</span> <b id="finalBest">0</b></div>
     <div id="unlock" class="unlock hide"></div>
     <div id="nameBox" class="namebox panel hide">
-      <h2 data-i18n="madeBoard">🏆 You made the Top 10!</h2>
+      <h2 data-i18n="madeBoard">🏆 New top 10 score!</h2>
       <input id="nameInput" type="text" maxlength="14" placeholder="Enter your name" data-i18n-ph="namePh" autocomplete="nickname" enterkeyhint="done">
       <button id="saveName" class="btn" data-i18n="save">Save</button>
     </div>
-    <div class="board-wrap panel" id="overBoardWrap"><h2 data-i18n="leaderboard">🏆 Top Players</h2><div id="overBoard"></div></div>
+    <div class="board-wrap panel" id="overBoardWrap"><h2 data-i18n="leaderboard">🏆 My Best Scores</h2><div id="overBoard"></div></div>
     <button id="revive" class="btn revive hide">📺 Watch an ad to continue</button>
     <div class="row"><button id="again" class="btn" data-i18n="again">↻ Again</button><button id="share" class="btn ghost" data-i18n="share">Share</button><button id="toMenu" class="btn ghost" data-i18n="menu">Menu</button></div>
   </div>
 
-  <div id="board" class="hide"><div class="panel"><h2 data-i18n="leaderboard">🏆 Top Players</h2><div id="boardList"></div><div class="row" style="margin-top:10px"><button id="closeBoard" class="btn ghost" data-i18n="close">Close</button></div></div></div>
+  <div id="board" class="hide"><div class="panel"><h2 data-i18n="leaderboard">🏆 My Best Scores</h2><div id="boardList"></div><div class="row" style="margin-top:10px"><button id="closeBoard" class="btn ghost" data-i18n="close">Close</button></div></div></div>
 
   <div id="sharePanel" class="hide"><div class="panel sharebox">
     <h2 data-i18n="share">Share</h2>
@@ -133,9 +133,9 @@
   </div></div>
 
   <button id="mute" aria-label="Sound">🔊</button>
-  <script src="i18n.js?v=3"></script>
-  <script src="platform.js?v=3"></script>
-  <script src="game.js?v=12"></script>
+  <script src="i18n.js?v=4"></script>
+  <script src="platform.js?v=4"></script>
+  <script src="game.js?v=13"></script>
   <script>
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       var hadController = !!navigator.serviceWorker.controller, reloaded = false;

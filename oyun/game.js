@@ -207,7 +207,12 @@
     if (!ok) {
       const code = String(PF.lastAdError || "");
       // ads switched off for this game (e.g. before launch): stop offering ads, no error on screen
-      if (/disabled/i.test(code)) { PF.adsAvailable = false; ui.revive.classList.add("hide"); return; }
+      if (/disabled/i.test(code)) {
+        PF.adsAvailable = false;
+        ui.revive.textContent = T("adsLater");
+        setTimeout(() => ui.revive.classList.add("hide"), 2500);
+        return;
+      }
       ui.revive.textContent = T("noAd") + (code ? " (" + code.slice(0, 24) + ")" : ""); ui.revive.disabled = false; return;
     }
     g.revived = true; g.dead = false; g.flash = 0; g.shake = 0;
@@ -645,6 +650,8 @@
   PF.init().then(() => {
     if (PF.name !== "crazygames") return;
     $("share").classList.add("hide"); $("install").classList.add("hide");
+    // prefill the name box with the CrazyGames username (only if the player has not typed one before)
+    PF.username().then((u) => { if (u && !store.get("yorunge_name", "")) lastName = String(u).slice(0, 14); }).catch(() => {});
     // saved progress may live in the CrazyGames Data Module: read it again now that the SDK is ready
     best = Math.max(best, parseInt(store.get("yorunge_best", "0"), 10) || 0);
     muted = store.get("yorunge_mute", muted ? "1" : "0") === "1";
