@@ -6,6 +6,7 @@
     name: "web",
     ready: false,
     adsAvailable: false,
+    lastAdError: "",
     _sdk: null,
     sdkMuted: false,
     _muteListeners: [],
@@ -47,12 +48,13 @@
         if (!P._sdk || !P.adsAvailable) return resolve(false);
         let done = false;
         const finish = (ok) => { if (!done) { done = true; resolve(ok); } };
-        const guard = setTimeout(() => finish(false), 60000); // never hang the game
+        P.lastAdError = "";
+        const guard = setTimeout(() => { P.lastAdError = "timeout"; finish(false); }, 60000); // never hang the game
         try {
           P._sdk.ad.requestAd(type, {
             adStarted: () => { try { onStart && onStart(); } catch (e) {} },
             adFinished: () => { clearTimeout(guard); finish(true); },
-            adError: () => { clearTimeout(guard); finish(false); },
+            adError: (err) => { P.lastAdError = (err && (err.code || err.message)) || String(err || "error"); clearTimeout(guard); finish(false); },
           });
         } catch (e) { clearTimeout(guard); finish(false); }
       });
