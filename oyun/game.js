@@ -542,7 +542,7 @@
 
   /* ---------- input ---------- */
   function onPress(e) {
-    if (e.target.closest && e.target.closest("button, input, .panel, a")) return; // UI handles itself
+    if (e.target.closest && e.target.closest("button, input, select, option, label, .langwrap, .skins, .panel, a")) return; // UI handles itself
     e.preventDefault();
     tap();
   }
