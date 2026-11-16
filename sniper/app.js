@@ -289,14 +289,15 @@
   }
 
   function controls() {
-    if (st.status === "live") return `<div class="cta"><button class="btn stop" data-act="stop">Durdur</button></div>`;
+    const big = `<div class="cta col"><button class="btn go big" data-act="startdemo">⚡ Demo başlat<small>videodaki gibi hızlı · sahte coinler</small></button>
+           <button class="btn big" data-act="startlive">▶ Canlı başlat<small>gerçek Solana coinleri · sanal para</small></button></div>`;
+    if (st.status === "live") {
+      return `<div class="cta"><button class="btn stop" data-act="stop">Durdur</button>${feedMode === "live" ? `<button class="btn" data-act="startdemo">⚡ Demo'ya geç</button>` : `<button class="btn" data-act="startlive">▶ Canlı'ya geç</button>`}</div>`;
+    }
     const managingNote = st.positions.length ? `<p class="note">Durduruldu: yeni alım yok. Açık ${st.positions.length} pozisyon stop / trail ile takip ediliyor.</p>` : "";
-    if (st.status === "locked") return `<div class="cta"><button class="btn go" data-act="again">Bu gece aynı $${st.cfg.budget}?</button></div>`;
-    return `<div class="seg" style="margin-bottom:8px">${[20, 50, 100].map((b) => `<button data-budget="${b}" class="${st.cfg.budget === b ? "on" : ""}" ${st.startedAt ? "disabled" : ""}>$${b}</button>`).join("")}</div>` +
-      (st.startedAt
-        ? `<div class="cta"><button class="btn go" data-act="start">▶ Devam et</button></div>`
-        : `<div class="cta col"><button class="btn go big" data-act="startdemo">⚡ Demo başlat<small>videodaki gibi hızlı · sahte coinler</small></button>
-           <button class="btn big" data-act="startlive">▶ Canlı başlat<small>gerçek Solana coinleri · sanal para</small></button></div>`) + managingNote;
+    const resume = st.status === "idle" && st.startedAt ? `<div class="cta"><button class="btn" data-act="start">⏯ Kaldığı yerden devam et</button></div>` : "";
+    const seg = `<div class="seg" style="margin-bottom:8px">${[20, 50, 100].map((b) => `<button data-budget="${b}" class="${st.cfg.budget === b ? "on" : ""}">$${b}</button>`).join("")}</div>`;
+    return seg + big + resume + (st.startedAt ? `<p class="note">Demo / Canlı başlat sıfırdan yeni bir gece başlatır.</p>` : "") + managingNote;
   }
 
   function finalCard() {
@@ -433,7 +434,12 @@
     const t = ev.target.closest("[data-tab],[data-act],[data-budget],[data-feed]");
     if (!t) return;
     if (t.dataset.tab) { setTab(t.dataset.tab); return; }
-    if (t.dataset.budget) { if (!st.startedAt) { st = E.newState(Object.assign({}, st.cfg, { budget: +t.dataset.budget }), clock()); save(); paint(); } return; }
+    if (t.dataset.budget) {
+      const b = +t.dataset.budget;
+      if (!st.startedAt) st = E.newState(Object.assign({}, st.cfg, { budget: b }), clock());
+      else st.cfg = Object.assign({}, st.cfg, { budget: b }); // used by the next Demo / Canlı start
+      save(); paint(); return;
+    }
     if (t.dataset.feed) {
       if (t.dataset.feed === feedMode) return;
       if (st.startedAt && !confirm("Veri kaynağını değiştirmek geçmişi sıfırlar. Devam?")) return;

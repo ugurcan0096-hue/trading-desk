@@ -1,5 +1,5 @@
 /* Meme Sniper service worker: app shell works offline; market data always from network. */
-const CACHE = "sniper-v2";
+const CACHE = "sniper-v3";
 const SHELL = ["./", "./index.html", "./sniper.css", "./engine.js", "./feed.js", "./app.js", "./manifest.json",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-192-maskable.png", "./icons/icon-512-maskable.png"];
 
