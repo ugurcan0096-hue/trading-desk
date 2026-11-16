@@ -9,7 +9,7 @@ here = os.path.dirname(os.path.abspath(__file__))
 out_dir = sys.argv[1] if len(sys.argv) > 1 else here
 html = open(os.path.join(here, "index.html"), encoding="utf-8").read()
 
-sdk = '<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>\n  '
+sdk = '<script>window.__FORCE_DEFAULT_EN = true;</script>\n  <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>\n  '
 assert '<script src="i18n.js' in html
 html = html.replace('<script src="i18n.js', sdk + '<script src="i18n.js', 1)
 html = html.replace('  <link rel="manifest" href="manifest.json">\n', '', 1)

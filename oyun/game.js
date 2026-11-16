@@ -83,8 +83,9 @@
     cv.style.width = W + "px"; cv.style.height = H + "px";
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     U = Math.min(W, H);
-    CX = W / 2; CY = H * 0.5;
-    R = [U * 0.2, U * 0.36];
+    CX = W / 2;
+    if (W > H * 1.1) { CY = H * 0.53; R = [U * 0.18, U * 0.32]; } // landscape / desktop: keep clear of the score
+    else { CY = H * 0.5; R = [U * 0.2, U * 0.36]; }
     makeSky();
   }
 
@@ -164,7 +165,7 @@
     if (state === "menu") { start(); return; }
     if (state === "over") { if (!awaitingName && !adPlaying && g && g.t - g.deadT > 0.6) again(); return; }
     if (g.dead) return;
-    g.ring = 1 - g.ring;
+    g.ring = 1 - g.ring; g.tapped = true;
     g.from = g.rad; g.switchT = 0;
     beep(g.ring ? 520 : 380, 0.08, "triangle", 0.09);
   }
@@ -464,6 +465,12 @@
         ctx.shadowColor = `rgb(${glowRGB})`; ctx.shadowBlur = 24;
         ctx.fillText(g.banner.text, CX, CY - R[1] - U * 0.08);
         ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+      }
+      if (state === "play" && !g.dead && g.t < 3.5 && !g.tapped) {
+        ctx.globalAlpha = Math.min(1, (3.5 - g.t) / 0.5) * (0.75 + 0.25 * Math.sin(t * 6));
+        ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = `800 ${Math.round(U * 0.05)}px system-ui, sans-serif`;
+        ctx.fillText(T("tapHint"), CX, Math.min(CY + R[1] + U * 0.14, H - U * 0.05));
+        ctx.globalAlpha = 1;
       }
       if (g.flash > 0) { ctx.fillStyle = `rgba(255,120,90,${g.flash * 0.6})`; ctx.fillRect(-20, -20, W + 40, H + 40); }
     } else {
