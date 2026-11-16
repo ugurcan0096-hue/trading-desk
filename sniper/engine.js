@@ -7,7 +7,8 @@
   const SEATS = ["watcher", "auditor", "judge", "sizer", "risk"];
 
   const DEFAULT_CFG = {
-    budget: 100,
+    cv: 2,                        // config version (for migrating saved settings)
+    budget: 20,
     ticket: 0.20,                 // share of free cash per buy
     stop: -0.08,                  // stop loss vs entry
     trail: { start: 0.20, give: 0.15 }, // trail arms at +20%, exits 15% below peak
@@ -17,16 +18,16 @@
     lock: "07:00",                // local time: close everything, stop buying
     mode: "paper",
     // Seat thresholds
-    min_liq: 40000,
-    mcap_min: 100000,
-    mcap_max: 1000000,
-    max_age_min: 60,
-    max_top10: 0.30,
+    min_liq: 15000,
+    mcap_min: 30000,
+    mcap_max: 3000000,
+    max_age_min: 360,
+    max_top10: 0.40,
     chase_max: 0.25,              // Judge: skip if price ran > +25% since spotted
-    chase_min: -0.10,             // Judge: skip if it already dumped > 10%
-    judge_wait_s: 15,             // Judge looks again after this many seconds
+    chase_min: -0.15,             // Judge: skip if it already dumped > 15%
+    judge_wait_s: 10,             // Judge looks again after this many seconds
     judge_timeout_min: 15,        // forget a token nobody bought after this
-    min_ticket: 5,
+    min_ticket: 1,
     slip: 0.01,                   // paper fill cost each way (1% buy, 1% sell)
     require_audit: false,         // if true, no holder data = reject
   };
@@ -53,6 +54,7 @@
       closed: [],                // {mint,symbol,icon,entry,exit,cost,proceeds,pnl,pct,reason,at,openedAt}
       seen: {},                  // mint -> {symbol,spotPrice,spotAt,status,reason,seat,n}
       stats: { scanned: 0, bought: 0, rejected: 0 },
+      why: {},                   // seat -> { reason key -> count }
       equity: [{ t: now || Date.now(), v: c.budget, k: "start" }],
       current: null,             // {mint,symbol,icon,tok,seat,verdict,reason,n}
       lastStop: null,
@@ -125,7 +127,7 @@
     const s = tp(ch * 100);
     if (ch > c.chase_max) return { ok: false, why: "kovalama " + s + " (max " + tp(c.chase_max * 100) + ")" };
     if (ch < c.chase_min) return { ok: false, why: "düşüşte " + s };
-    if (tok.buys5m != null && tok.sells5m != null && tok.sells5m > tok.buys5m * 1.5) return { ok: false, why: "satış baskısı " + tok.sells5m + "/" + tok.buys5m };
+    if (tok.buys5m != null && tok.sells5m != null && tok.sells5m > tok.buys5m * 2) return { ok: false, why: "satış baskısı " + tok.sells5m + "/" + tok.buys5m };
     return { ok: true, why: s + " görüldüğünden beri · ok" };
   }
 
@@ -187,6 +189,11 @@
     s.seat = seat;
     st.stats.rejected += 1;
     st.lastReject = { seat, why, symbol: tok.symbol };
+    const KEYS = ["top 10 yüksek", "liq düşük", "mcap", "yaş", "fiyat yok", "mint yetkisi açık", "freeze yetkisi açık", "holder verisi yok", "kovalama", "düşüşte", "satış baskısı", "slot dolu", "ticket"];
+    const key = why.startsWith("top 10") ? "top 10 yüksek" : why.startsWith("liq") ? "liq düşük" : (KEYS.find((k) => why.startsWith(k)) || why);
+    st.why = st.why || {};
+    const w = (st.why[seat] = st.why[seat] || {});
+    w[key] = (w[key] || 0) + 1;
     setCurrent(st, tok, s, seat, "skip", why);
     log(st, now, "Atlandı " + tok.symbol + " · " + cap(seat) + " · " + why, "skip");
     return { seat, ok: false, why };
