@@ -569,13 +569,39 @@
   $("saveName").addEventListener("click", saveName);
   $("openBoard").addEventListener("click", () => { fillBoard(ui.boardList, null); ui.board.classList.remove("hide"); });
   $("closeBoard").addEventListener("click", () => ui.board.classList.add("hide"));
+  // Share: phone share sheet → copy to clipboard → show the text to copy by hand. Never silent.
+  function copyText(s) {
+    return new Promise((resolve) => {
+      const legacy = () => {
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = s; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;";
+          document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, s.length);
+          const ok = document.execCommand("copy"); ta.remove(); resolve(!!ok);
+        } catch (e) { resolve(false); }
+      };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(s).then(() => resolve(true), legacy);
+        else legacy();
+      } catch (e) { legacy(); }
+    });
+  }
+  let shareBusy = false;
   $("share").addEventListener("click", async () => {
+    if (shareBusy) return;
+    shareBusy = true;
+    const btn = $("share");
     const text = T("shareText", { n: g ? g.score : 0 });
     const url = location.href.split("#")[0];
+    const flash = (label) => { btn.textContent = label; setTimeout(() => { btn.textContent = T("share"); }, 2200); };
     try {
-      if (navigator.share) await navigator.share({ title: T("title"), text, url });
-      else { await navigator.clipboard.writeText(text + " " + url); $("share").textContent = T("copied"); }
-    } catch (e) {}
+      if (navigator.share) {
+        try { await navigator.share({ title: T("title"), text, url }); return; }
+        catch (e) { if (e && e.name === "AbortError") return; /* cancelled by the player */ }
+      }
+      if (await copyText(text + " " + url)) { flash(T("copied")); return; }
+      window.prompt(T("share"), text + " " + url);
+    } finally { shareBusy = false; }
   });
   ui.skins.addEventListener("click", (e) => {
     const b = e.target.closest("[data-skin]"); if (!b) return;
