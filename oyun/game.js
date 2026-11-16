@@ -1,14 +1,15 @@
-/* Yörünge — one-tap orbit game. Tap to switch between the inner and outer orbit. */
+/* Orbit Dash (Yörünge) — one-tap orbit game. Tap to switch between the inner and outer orbit. */
 (function () {
   "use strict";
   const cv = document.getElementById("cv");
   const ctx = cv.getContext("2d");
   const $ = (id) => document.getElementById(id);
+  const T = (k, v) => (window.I18N ? window.I18N.t(k, v) : k);
   const ui = {
     menu: $("menu"), over: $("over"), hud: $("hud"), score: $("score"), best: $("best"), level: $("level"),
     final: $("final"), finalBest: $("finalBest"), newBest: $("newBest"), menuBest: $("menuBest"), mute: $("mute"),
     board: $("board"), boardList: $("boardList"), nameBox: $("nameBox"), nameInput: $("nameInput"),
-    overBoard: $("overBoard"), overWrap: $("overBoardWrap"), skins: $("skins"), unlock: $("unlock"),
+    overBoard: $("overBoard"), overWrap: $("overBoardWrap"), revive: $("revive"), skins: $("skins"), unlock: $("unlock"),
   };
 
   const store = {
@@ -27,7 +28,7 @@
   let board = loadBoard();
   function qualifies(s) { return s > 0 && (board.length < 10 || s > board[board.length - 1].s); }
   function addToBoard(name, s) {
-    const row = { n: String(name || "Oyuncu").trim().slice(0, 14) || "Oyuncu", s, d: Date.now() };
+    const row = { n: String(name || T("player")).trim().slice(0, 14) || T("player"), s, d: Date.now() };
     board.push(row);
     board.sort((a, b) => b.s - a.s || a.d - b.d);
     board = board.slice(0, 10);
@@ -35,7 +36,7 @@
     return row;
   }
   function boardHTML(highlight) {
-    if (!board.length) return `<div class="empty">Henüz skor yok. İlk sen ol!</div>`;
+    if (!board.length) return `<div class="empty">${T("noScores")}</div>`;
     const medal = ["🥇", "🥈", "🥉"];
     return board.map((r, i) => `<div class="brow ${r === highlight ? "me" : ""}"><span class="rk">${medal[i] || i + 1}</span><span class="nm"></span><span class="sc">${r.s}</span></div>`).join("");
   }
@@ -58,8 +59,8 @@
   function renderSkins() {
     ui.skins.innerHTML = SKINS.map((s, i) => {
       const locked = best < s.need;
-      return `<button class="skin ${i === skin ? "on" : ""} ${locked ? "locked" : ""}" data-skin="${i}" aria-label="${s.name}">
-        <span class="sw" style="background:${s.body};box-shadow:0 0 12px ${s.glow}"></span><small>${locked ? "🔒 " + s.need : s.name}</small></button>`;
+      return `<button class="skin ${i === skin ? "on" : ""} ${locked ? "locked" : ""}" data-skin="${i}" aria-label="${T("skin" + i)}">
+        <span class="sw" style="background:${s.body};box-shadow:0 0 12px ${s.glow}"></span><small>${locked ? "🔒 " + s.need : T("skin" + i)}</small></button>`;
     }).join("");
   }
 
@@ -90,7 +91,7 @@
   /* ---------- sound (tiny synth, no files) ---------- */
   let ac = null;
   function beep(freq, dur, type, vol, slide) {
-    if (muted) return;
+    if (muted || adPlaying) return;
     try {
       ac = ac || new (window.AudioContext || window.webkitAudioContext)();
       if (ac.state === "suspended") ac.resume();
@@ -120,6 +121,10 @@
   let skyRot = 0;
   let themeIdx = 0, themeMix = 1, themePrev = 0;
   let awaitingName = false, lastRow = null;
+  // ads (CrazyGames only; on our own site Platform.adsAvailable is false)
+  const PF = window.Platform || { adsAvailable: false, name: "web", gameplayStart() {}, gameplayStop() {}, happytime() {}, showAd: () => Promise.resolve(false), init: () => Promise.resolve() };
+  let adPlaying = false, runs = 0, lastAdAt = Date.now();
+  const MIDGAME_GAP_MS = 150000, MIDGAME_MIN_RUNS = 2;
 
   function newGame() {
     g = {
@@ -157,7 +162,7 @@
 
   function tap() {
     if (state === "menu") { start(); return; }
-    if (state === "over") { if (!awaitingName && g && g.t - g.deadT > 0.6) start(); return; }
+    if (state === "over") { if (!awaitingName && !adPlaying && g && g.t - g.deadT > 0.6) again(); return; }
     if (g.dead) return;
     g.ring = 1 - g.ring;
     g.from = g.rad; g.switchT = 0;
@@ -169,8 +174,42 @@
     newGame();
     state = "play";
     ui.menu.classList.add("hide"); ui.over.classList.add("hide"); ui.board.classList.add("hide"); ui.hud.classList.remove("hide");
-    ui.score.textContent = "0"; ui.best.textContent = "En iyi " + best; ui.level.textContent = "Seviye 1";
+    ui.score.textContent = "0"; ui.best.textContent = T("bestHud", { n: best }); ui.level.textContent = T("level", { n: 1 });
     beep(440, 0.12, "sine", 0.1, 880);
+    runs++;
+    PF.gameplayStart();
+  }
+
+  // "Tekrar": now and then a short ad between games (never more often than every 2.5 minutes)
+  async function again() {
+    if (adPlaying) return;
+    if (awaitingName) saveName();
+    if (PF.adsAvailable && runs >= MIDGAME_MIN_RUNS && Date.now() - lastAdAt > MIDGAME_GAP_MS) {
+      adPlaying = true;
+      await PF.showAd("midgame");
+      adPlaying = false; lastAdAt = Date.now();
+    }
+    start();
+  }
+
+  // Rewarded ad: watch an ad, keep playing from where you died (once per game)
+  async function revive() {
+    if (adPlaying || !g || !g.dead || g.revived) return;
+    adPlaying = true;
+    ui.revive.disabled = true; ui.revive.textContent = T("adLoading");
+    const ok = await PF.showAd("rewarded");
+    adPlaying = false; lastAdAt = Date.now();
+    if (!ok) { ui.revive.textContent = T("noAd"); return; }
+    g.revived = true; g.dead = false; g.flash = 0; g.shake = 0;
+    // clear the way and give a free shield
+    g.items = g.items.filter((it) => it.kind !== "rock" || it.ang - g.ang > 1.6 || it.ang - g.ang < -0.2);
+    g.shield = true; g.shieldT = 0; g.switchT = 1; g.travelled = 0; g.nextAt = 1.2;
+    awaitingName = false;
+    state = "play";
+    ui.over.classList.add("hide"); ui.hud.classList.remove("hide");
+    float(shipPos(), T("resume"), "#7dffb0");
+    beep(523, 0.1, "sine", 0.1, 1046);
+    PF.gameplayStart();
   }
 
   function die() {
@@ -183,13 +222,18 @@
     const isBest = g.score > best;
     if (isBest) { best = g.score; store.set("yorunge_best", best); }
     const unlocked = SKINS.filter((s) => s.need > oldBest && s.need <= best);
+    PF.gameplayStop();
+    if (isBest) PF.happytime();
     setTimeout(() => {
+      const canRevive = PF.adsAvailable && !g.revived;
+      ui.revive.classList.toggle("hide", !canRevive);
+      ui.revive.disabled = false; ui.revive.textContent = T("watchAd");
       state = "over";
       ui.final.textContent = g.score;
       ui.finalBest.textContent = best;
       ui.newBest.classList.toggle("hide", !isBest);
       ui.unlock.classList.toggle("hide", !unlocked.length);
-      if (unlocked.length) ui.unlock.textContent = "🚀 Yeni gemi açıldı: " + unlocked.map((s) => s.name).join(", ");
+      if (unlocked.length) ui.unlock.textContent = T("newShip", { s: unlocked.map((s) => T("skin" + SKINS.indexOf(s))).join(", ") });
       lastRow = null;
       awaitingName = qualifies(g.score);
       ui.nameBox.classList.toggle("hide", !awaitingName);
@@ -202,7 +246,7 @@
 
   function saveName() {
     if (!awaitingName) return;
-    const name = ui.nameInput.value.trim() || "Oyuncu";
+    const name = ui.nameInput.value.trim() || T("player");
     lastName = name; store.set("yorunge_name", name);
     lastRow = addToBoard(name, g.score);
     awaitingName = false;
@@ -232,8 +276,8 @@
     const lv = 1 + Math.floor(g.score / LEVEL_EVERY);
     if (lv > g.level) {
       g.level = lv;
-      ui.level.textContent = "Seviye " + lv;
-      g.banner = { text: "SEVİYE " + lv, t: 0 };
+      ui.level.textContent = T("level", { n: lv });
+      g.banner = { text: T("levelBanner", { n: lv }), t: 0 };
       setTheme(lv - 1, false);
       beep(523, 0.12, "triangle", 0.1); setTimeout(() => beep(659, 0.12, "triangle", 0.1), 110); setTimeout(() => beep(784, 0.2, "triangle", 0.1), 220);
       buzz([20, 30, 20]);
@@ -294,19 +338,19 @@
           if (g.shield) {
             it.dead = true; g.shield = false; g.shake = 9;
             burst(p, "#8b5a44", 24, 1.2); burst(p, "#7cc8ff", 24, 1);
-            float(sp, "Kalkan!", "#7cc8ff"); beep(300, 0.25, "square", 0.08, 120); buzz([30, 30, 30]);
+            float(sp, T("shieldHit"), "#7cc8ff"); beep(300, 0.25, "square", 0.08, 120); buzz([30, 30, 30]);
             continue;
           }
           die(); return;
         }
-        if (!it.near && dist < it.r + shipR * 2.6 && d < 0) { it.near = true; addScore(2, sp, "Kıl payı! +2", "#7cf2ff"); beep(900, 0.07, "square", 0.05); buzz(15); }
+        if (!it.near && dist < it.r + shipR * 2.6 && d < 0) { it.near = true; addScore(2, sp, T("nearMiss"), "#7cf2ff"); beep(900, 0.07, "square", 0.05); buzz(15); }
         if (d < -0.35 && !it.passed) { it.passed = true; addScore(1); }
       } else if (it.kind === "gem") {
         if (dist < it.r + shipR * 1.4) {
           it.dead = true;
           g.combo++; g.comboT = 2.2;
           const pts = 5 * Math.min(g.combo, 5);
-          addScore(pts, p, g.combo > 1 ? `Kombo x${Math.min(g.combo, 5)}  +${pts}` : `+${pts}`, "#ffd84d");
+          addScore(pts, p, g.combo > 1 ? T("combo", { c: Math.min(g.combo, 5), p: pts }) : `+${pts}`, "#ffd84d");
           burst(p, "#ffd84d", 18, 0.8);
           beep(660 + Math.min(g.combo, 5) * 110, 0.12, "sine", 0.12, 1320 + g.combo * 80);
           buzz(10);
@@ -314,7 +358,7 @@
       } else if (it.kind === "shield") {
         if (dist < it.r + shipR * 1.5) {
           it.dead = true; g.shield = true; g.shieldT = 0;
-          float(p, "🛡️ Kalkan", "#7cc8ff"); burst(p, "#7cc8ff", 22, 0.9);
+          float(p, T("shieldGot"), "#7cc8ff"); burst(p, "#7cc8ff", 22, 0.9);
           beep(523, 0.1, "sine", 0.1, 1046); buzz(20);
         }
       }
@@ -504,16 +548,17 @@
   window.addEventListener("resize", resize);
 
   $("play").addEventListener("click", start);
-  $("again").addEventListener("click", start);
+  $("again").addEventListener("click", again);
+  ui.revive.addEventListener("click", revive);
   $("saveName").addEventListener("click", saveName);
   $("openBoard").addEventListener("click", () => { fillBoard(ui.boardList, null); ui.board.classList.remove("hide"); });
   $("closeBoard").addEventListener("click", () => ui.board.classList.add("hide"));
   $("share").addEventListener("click", async () => {
-    const text = `Yörünge'de ${g ? g.score : 0} puan yaptım! Geçebilir misin? 🚀`;
+    const text = T("shareText", { n: g ? g.score : 0 });
     const url = location.href.split("#")[0];
     try {
-      if (navigator.share) await navigator.share({ title: "Yörünge", text, url });
-      else { await navigator.clipboard.writeText(text + " " + url); $("share").textContent = "Kopyalandı ✓"; }
+      if (navigator.share) await navigator.share({ title: T("title"), text, url });
+      else { await navigator.clipboard.writeText(text + " " + url); $("share").textContent = T("copied"); }
     } catch (e) {}
   });
   ui.skins.addEventListener("click", (e) => {
@@ -526,7 +571,7 @@
   ui.mute.addEventListener("click", () => setMute(!muted));
 
   let installEvt = null;
-  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; $("install").classList.remove("hide"); });
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; if (PF.name !== "crazygames") $("install").classList.remove("hide"); });
   $("install").addEventListener("click", () => { if (!installEvt) return; installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; $("install").classList.add("hide"); }); });
   window.addEventListener("appinstalled", () => $("install").classList.add("hide"));
 
@@ -535,15 +580,32 @@
     if (awaitingName) saveName();
     state = "menu"; g = null; setTheme(0, true);
     ui.over.classList.add("hide"); ui.menu.classList.remove("hide");
-    ui.menuBest.textContent = best ? "En iyi skor: " + best : ""; renderSkins();
+    refreshMenuText();
   });
 
+  PF.init().then(() => {
+    if (PF.name === "crazygames") { $("share").classList.add("hide"); $("install").classList.add("hide"); }
+  }).catch(() => {});
   setMute(muted);
-  ui.menuBest.textContent = best ? "En iyi skor: " + best : "";
+  // language menu
+  function refreshMenuText() {
+    ui.menuBest.textContent = best ? T("bestScore", { n: best }) : "";
+    renderSkins();
+    if (ui.board && !ui.board.classList.contains("hide")) fillBoard(ui.boardList, null);
+  }
+  const langSel = $("lang");
+  if (langSel && window.I18N) {
+    langSel.innerHTML = window.I18N.list.map((l) => `<option value="${l.code}">${l.label}</option>`).join("");
+    langSel.value = window.I18N.lang;
+    langSel.addEventListener("change", () => window.I18N.set(langSel.value));
+    window.I18N.onChange(() => { refreshMenuText(); if (g && state === "play") { ui.best.textContent = T("bestHud", { n: best }); ui.level.textContent = T("level", { n: g.level }); } });
+    window.I18N.apply();
+  }
+  refreshMenuText();
   renderSkins();
   resize();
   requestAnimationFrame(frame);
 
   // for automated tests only
-  window.__yorunge = { get state() { return state; }, get g() { return g; }, tap, R: () => R, get awaitingName() { return awaitingName; } };
+  window.__yorunge = { get state() { return state; }, get g() { return g; }, tap, R: () => R, get awaitingName() { return awaitingName; }, PF, revive, again };
 })();

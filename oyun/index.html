@@ -1,17 +1,17 @@
 <!doctype html>
-<html lang="tr">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="theme-color" content="#0b0920">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Yörünge">
-  <meta name="description" content="Tek dokunuşla oynanan uzay oyunu: yörünge değiştir, meteorlardan kaç, elmasları topla.">
+  <meta name="apple-mobile-web-app-title" content="Orbit Dash">
+  <meta name="description" content="One-tap space game: switch orbits, dodge meteors, collect gems.">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <title>Yörünge</title>
+  <title>Orbit Dash</title>
   <style>
     :root { --text: #f3f1ff; --muted: #a9a3d6; --gold: #ffd84d; --cyan: #7cf2ff; --bg: #0b0920; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -29,6 +29,7 @@
     .btn { font: 800 20px/1 inherit; font-family: inherit; color: #120c2e; background: linear-gradient(180deg, #ffe680, #ffc93d); border: 0; border-radius: 999px; padding: 16px 34px; cursor: pointer; box-shadow: 0 8px 30px rgba(255,216,77,.35); }
     .btn:active { transform: scale(.96); }
     .btn.ghost { background: rgba(255,255,255,.1); color: var(--text); box-shadow: none; font-size: 16px; padding: 12px 20px; }
+    #menu, #over { padding-top: calc(64px + env(safe-area-inset-top, 0px)); }
     .spacer { height: 30vh; }
     #menu .spacer { height: 34vh; }
     .big { font-size: clamp(64px, 20vw, 110px); font-weight: 900; line-height: 1; }
@@ -66,6 +67,11 @@
     .namebox { display: flex; flex-direction: column; gap: 8px; align-items: center; }
     .namebox input { width: min(260px, 80vw); font: 700 18px inherit; font-family: inherit; padding: 12px 14px; border-radius: 12px; border: 2px solid rgba(255,216,77,.6); background: rgba(0,0,0,.35); color: #fff; text-align: center; user-select: text; -webkit-user-select: text; outline: none; }
     #over .board-wrap { max-height: 34vh; overflow-y: auto; }
+    .btn.revive { background: linear-gradient(180deg, #8cffc1, #34d36b); box-shadow: 0 8px 30px rgba(52,211,107,.35); }
+    .btn:disabled { opacity: .7; }
+    .langwrap { pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,.08); border-radius: 999px; padding: 6px 12px; font-size: 15px; }
+    .langwrap select { background: transparent; color: var(--text); border: 0; font: 600 15px inherit; font-family: inherit; outline: none; }
+    .langwrap option { background: #1a1440; color: #fff; }
     #board { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(4,3,12,.6); }
   </style>
 </head>
@@ -73,39 +79,45 @@
   <canvas id="cv"></canvas>
 
   <div id="menu" class="layer">
-    <h1>Yörünge</h1>
-    <div class="sub">Ekrana dokun, iç ve dış yörünge arasında atla. Meteorlardan kaç, elmasları topla!</div>
+    <h1 data-i18n="title">Orbit Dash</h1>
+    <div class="sub" data-i18n="sub">Tap to jump between the inner and outer orbit. Dodge meteors, collect gems!</div>
     <div class="spacer"></div>
-    <button id="play" class="btn">▶ Oyna</button>
+    <button id="play" class="btn" data-i18n="play">▶ Play</button>
     <div id="menuBest" class="hint"></div>
     <div id="skins" class="skins"></div>
     <div class="row">
-      <button id="openBoard" class="btn ghost">🏆 En İyiler</button>
-      <button id="install" class="btn ghost hide">📲 Telefona yükle</button>
+      <button id="openBoard" class="btn ghost" data-i18n="leaderboard">🏆 Top Players</button>
+      <button id="install" class="btn ghost hide" data-i18n="install">📲 Install</button>
+    </div>
+    <div class="row">
+      <label class="langwrap">🌐 <select id="lang" aria-label="Language"></select></label>
     </div>
   </div>
 
   <div id="hud" class="hide"><div id="score">0</div><div id="best"></div><div id="level"></div></div>
 
   <div id="over" class="layer hide">
-    <div class="hint">SKOR</div>
+    <div class="hint" data-i18n="score">SCORE</div>
     <div id="final" class="big">0</div>
-    <div id="newBest" class="newbest hide">★ YENİ REKOR ★</div>
-    <div class="hint">En iyi: <b id="finalBest">0</b></div>
+    <div id="newBest" class="newbest hide" data-i18n="newRecord">★ NEW RECORD ★</div>
+    <div class="hint"><span data-i18n="best">Best:</span> <b id="finalBest">0</b></div>
     <div id="unlock" class="unlock hide"></div>
     <div id="nameBox" class="namebox panel hide">
-      <h2>🏆 En İyiler'e girdin!</h2>
-      <input id="nameInput" type="text" maxlength="14" placeholder="Adını yaz" autocomplete="nickname" enterkeyhint="done">
-      <button id="saveName" class="btn">Kaydet</button>
+      <h2 data-i18n="madeBoard">🏆 You made the Top 10!</h2>
+      <input id="nameInput" type="text" maxlength="14" placeholder="Enter your name" data-i18n-ph="namePh" autocomplete="nickname" enterkeyhint="done">
+      <button id="saveName" class="btn" data-i18n="save">Save</button>
     </div>
-    <div class="board-wrap panel" id="overBoardWrap"><h2>🏆 En İyiler</h2><div id="overBoard"></div></div>
-    <div class="row"><button id="again" class="btn">↻ Tekrar</button><button id="share" class="btn ghost">Paylaş</button><button id="toMenu" class="btn ghost">Menü</button></div>
+    <div class="board-wrap panel" id="overBoardWrap"><h2 data-i18n="leaderboard">🏆 Top Players</h2><div id="overBoard"></div></div>
+    <button id="revive" class="btn revive hide">📺 Watch an ad to continue</button>
+    <div class="row"><button id="again" class="btn" data-i18n="again">↻ Again</button><button id="share" class="btn ghost" data-i18n="share">Share</button><button id="toMenu" class="btn ghost" data-i18n="menu">Menu</button></div>
   </div>
 
-  <div id="board" class="hide"><div class="panel"><h2>🏆 En İyiler</h2><div id="boardList"></div><div class="row" style="margin-top:10px"><button id="closeBoard" class="btn ghost">Kapat</button></div></div></div>
+  <div id="board" class="hide"><div class="panel"><h2 data-i18n="leaderboard">🏆 Top Players</h2><div id="boardList"></div><div class="row" style="margin-top:10px"><button id="closeBoard" class="btn ghost" data-i18n="close">Close</button></div></div></div>
 
-  <button id="mute" aria-label="Ses">🔊</button>
-  <script src="game.js?v=3"></script>
+  <button id="mute" aria-label="Sound">🔊</button>
+  <script src="i18n.js?v=1"></script>
+  <script src="platform.js?v=1"></script>
+  <script src="game.js?v=5"></script>
   <script>
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       var hadController = !!navigator.serviceWorker.controller, reloaded = false;
