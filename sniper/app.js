@@ -20,6 +20,7 @@
   let tab = "home";
   let busy = false, lastDiscover = 0, lastErr = "", errCount = 0;
   const fresh = [];   // mints found by discover, not yet looked at
+  const retry = new Map(); // mint -> tries without a price yet
   let wake = null;
 
   const DEMO_SPEED = 30, DEMO_NIGHT_MS = 8 * 3600000;
@@ -52,13 +53,14 @@
 
   /* ---------- loop ---------- */
   async function step() {
-    if (busy || st.status !== "live") return;
+    const managing = st.status === "idle" && st.positions.length > 0; // stopped, but exits still run
+    if (busy || (st.status !== "live" && !managing)) return;
     busy = true;
     let netOk = false;
     if (feedMode === "demo") st.simNow = (st.simNow || Date.now()) + DEMO_SPEED * 1000;
     const now = clock();
     try {
-      if (now - lastDiscover > (feedMode === "demo" ? 0 : 10000)) {
+      if (st.status === "live" && now - lastDiscover > (feedMode === "demo" ? 0 : 10000)) {
         lastDiscover = now;
         try {
           const found = await feed.discover(now); netOk = true;
@@ -71,12 +73,14 @@
         }
       }
       const open = st.positions.map((p) => p.mint);
-      const watching = E.watchList(st);
-      const newOnes = fresh.splice(0, 20);
+      const watching = st.status === "live" ? E.watchList(st) : [];
+      const newOnes = st.status === "live" ? fresh.splice(0, 20) : [];
       const ids = [...new Set([...open, ...watching, ...newOnes])];
       if (ids.length) {
         const q = await feed.quote(ids, now); netOk = true;
         for (const m of open) if (q[m]) { const r = E.onPrice(st, m, q[m].price, now); if (r) toast(r); }
+        for (const m of newOnes) if (!q[m]) { const n = (retry.get(m) || 0) + 1; if (n <= 3) { retry.set(m, n); fresh.push(m); } else retry.delete(m); }
+        if (retry.size > 500) retry.clear();
         for (const m of [...newOnes, ...watching]) {
           const t = q[m];
           if (!t) continue;
@@ -98,7 +102,7 @@
       busy = false;
       if (st.status !== "live") releaseWake();
       save();
-      if (tab !== "config") paint();
+      if (tab !== "config") paintSoon();
     }
   }
 
@@ -109,7 +113,11 @@
     try { if ("wakeLock" in navigator && !wake) { wake = await navigator.wakeLock.request("screen"); wake.addEventListener("release", () => { wake = null; }); } } catch (e) {}
   }
   function releaseWake() { try { if (wake) wake.release(); } catch (e) {} wake = null; }
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && st.status === "live") grabWake(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    if (st.status === "live") grabWake();
+    step();
+  });
 
   function buzz(p) {
     try {
@@ -204,7 +212,7 @@
       <div class="stat"><div class="k">Taranan</div><div class="v">${st.stats.scanned}</div></div>
       <div class="stat"><div class="k">Alınan</div><div class="v pos">${st.stats.bought}</div></div>
       <div class="stat"><div class="k">Reddedilen</div><div class="v neg">${st.stats.rejected}</div></div>
-      <div class="stat"><div class="k">Kapanan</div><div class="v">${sm.wins}W ${sm.losses}L</div></div></div>`;
+      <div class="stat"><div class="k">Kâr / Zarar</div><div class="v"><span class="pos">${sm.wins}</span> / <span class="neg">${sm.losses}</span></div></div></div>`;
   }
 
   function tokCard() {
@@ -253,15 +261,16 @@
 
   function controls() {
     if (st.status === "live") return `<div class="cta"><button class="btn stop" data-act="stop">Durdur</button></div>`;
+    const managingNote = st.positions.length ? `<p class="note">Durduruldu: yeni alım yok. Açık ${st.positions.length} pozisyon stop / trail ile takip ediliyor.</p>` : "";
     if (st.status === "locked") return `<div class="cta"><button class="btn go" data-act="again">Bu gece aynı $${st.cfg.budget}?</button></div>`;
     return `<div class="seg" style="margin-bottom:8px">${[50, 100, 250].map((b) => `<button data-budget="${b}" class="${st.cfg.budget === b ? "on" : ""}" ${st.startedAt ? "disabled" : ""}>$${b}</button>`).join("")}</div>
-      <div class="cta"><button class="btn go" data-act="start">${st.startedAt ? "Devam et" : "Başlat · $" + st.cfg.budget + " paper"}</button></div>`;
+      <div class="cta"><button class="btn go" data-act="start">${st.startedAt ? "Devam et" : "Başlat · $" + st.cfg.budget + " paper"}</button></div>` + managingNote;
   }
 
   function finalCard() {
     if (st.status !== "locked") return "";
     const sm = E.summary(st);
-    return `<div class="card final"><div class="k">TÜM CONFIG · 9 SATIR</div><div class="big">$${st.cfg.budget} → <span class="${sm.pnl >= 0 ? "pos" : "neg"}">${money(sm.equity)}</span></div><div class="x">${sm.mult.toFixed(2)}×</div><div class="sub">9 satır · 5 koltuk · ${st.stats.scanned} token · ${st.stats.bought} alım · ${sm.wins}W ${sm.losses}L · paper</div></div>`;
+    return `<div class="card final"><div class="k">TÜM CONFIG · 9 SATIR</div><div class="big">$${st.cfg.budget} → <span class="${sm.pnl >= 0 ? "pos" : "neg"}">${money(sm.equity)}</span></div><div class="x">${sm.mult.toFixed(2)}×</div><div class="sub">9 satır · 5 koltuk · ${st.stats.scanned} token · ${st.stats.bought} alım · ${sm.wins} kâr / ${sm.losses} zarar · paper</div></div>`;
   }
 
   function warnings() {
@@ -276,7 +285,7 @@
     return header() + controls() + finalCard() + cfgCard() + chart() + statsRow() + tokCard() + seatsCard() + warnings() +
       (st.positions.length ? `<div class="sec-h"><h2>Açık pozisyonlar <span class="muted" style="font-size:12px;font-weight:500">${st.positions.length}/${st.cfg.max_open}</span></h2><span>canlı fiyat</span></div>` + openList() : "") +
       `<div class="sec-h"><h2>Bu gece kapananlar <span class="muted" style="font-size:12px;font-weight:500">${st.closed.length} işlem</span></h2><span>paper · SIM</span></div>` + closedList(12) +
-      (st.closed.length ? `<p class="note">Sonuçlar kayma ve ücret dahil (her yönde %${(st.cfg.slip * 100).toFixed(1).replace(".", ",")}). Bu yüzden −%8 stop genelde −%10 civarında kapanır; hızlı düşüşte daha kötü olabilir.</p>` : "");
+      (st.closed.length ? `<p class="note">Sonuçlar kayma ve ücret dahil (her yönde %${(st.cfg.slip * 100).toFixed(1).replace(".", ",")}). Bu yüzden ${E.tp(st.cfg.stop * 100)} stop genelde ${E.tp((st.cfg.stop - 2 * st.cfg.slip) * 100)} civarında kapanır; hızlı düşüşte daha kötü olabilir.</p>` : "");
   }
 
   function num(id, v, step, min, max, lab, sub) {
@@ -306,7 +315,7 @@
       </div>
       <div class="cta"><button class="btn go" data-act="savecfg" ${locked ? "disabled" : ""}>${locked ? "Önce botu durdur" : "Kaydet"}</button></div>
       <div class="cta"><button class="btn stop" data-act="reset">Sıfırla (tüm geçmişi sil)</button></div>
-      <p class="note">Bu tamamen <b>paper</b> (sanal para). Gerçek cüzdan, anahtar veya ödeme yok. Videodaki gibi 38× sonuçlar gerçekçi değil: memecoinlerin çoğu sıfıra gider ve −%8 stop, hızlı düşüşlerde çok daha kötü dolar. Fiyat ~10 saniyede bir kontrol edildiği için stop'lar da o anki fiyattan dolar.</p>`;
+      <p class="note">Bu tamamen <b>paper</b> (sanal para). Gerçek cüzdan, anahtar veya ödeme yok. Videodaki gibi 38× sonuçlar gerçekçi değil: memecoinlerin çoğu sıfıra gider ve stop, hızlı düşüşlerde çok daha kötü dolar. Fiyat ~3 saniyede bir kontrol edildiği için stop'lar o anki fiyattan dolar.</p>`;
   }
 
   function renderActivity() {
@@ -314,6 +323,14 @@
       <div class="card" style="padding:4px 12px"><div class="log">${st.log.slice(0, 150).map((l) => `<div class="row"><span class="t">${hhmm(l.t)}</span><div class="nm ${l.k === "win" ? "pos" : l.k === "loss" ? "neg" : l.k === "skip" ? "muted" : ""}">${esc(l.text)}</div></div>`).join("") || `<div class="empty">Henüz kayıt yok</div>`}</div></div>`;
   }
 
+  let touchAt = 0, paintTimer = null;
+  document.addEventListener("pointerdown", () => { touchAt = Date.now(); }, true);
+  function paintSoon() {
+    const wait = 700 - (Date.now() - touchAt);
+    if (wait <= 0) return paint();
+    clearTimeout(paintTimer);
+    paintTimer = setTimeout(paintSoon, wait);
+  }
   function paint() {
     $$(".tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
     try {
@@ -374,18 +391,21 @@
       const g = (id) => parseFloat($("#" + id).value);
       const c = Object.assign({}, st.cfg);
       const ok = (v) => isFinite(v) && v >= 0;
-      if (ok(g("ticket"))) c.ticket = Math.min(1, g("ticket") / 100);
-      if (ok(g("stop"))) c.stop = -Math.min(0.9, g("stop") / 100);
-      c.trail = { start: ok(g("tstart")) ? g("tstart") / 100 : c.trail.start, give: ok(g("tgive")) ? Math.min(0.9, g("tgive") / 100) : c.trail.give };
+      const pos = (v) => isFinite(v) && v > 0;
+      if (pos(g("ticket"))) c.ticket = Math.min(1, g("ticket") / 100);
+      if (pos(g("stop"))) c.stop = -Math.min(0.9, g("stop") / 100);
+      c.trail = { start: pos(g("tstart")) ? g("tstart") / 100 : c.trail.start, give: pos(g("tgive")) ? Math.min(0.9, g("tgive") / 100) : c.trail.give };
       if (ok(g("maxopen"))) c.max_open = Math.max(1, Math.round(g("maxopen")));
       const lk = $("#lock").value; if (/^\d\d:\d\d$/.test(lk)) c.lock = lk;
       if (ok(g("minliq"))) c.min_liq = g("minliq");
-      if (ok(g("top10"))) c.max_top10 = g("top10") / 100;
+      if (pos(g("top10"))) c.max_top10 = Math.min(1, g("top10") / 100);
       if (ok(g("mcmin"))) c.mcap_min = g("mcmin");
       if (ok(g("mcmax"))) c.mcap_max = g("mcmax");
       if (ok(g("age"))) c.max_age_min = g("age");
       if (ok(g("chase"))) c.chase_max = g("chase") / 100;
       if (ok(g("slip"))) c.slip = Math.min(0.2, g("slip") / 100);
+      if (c.mcap_min > c.mcap_max) { const x = c.mcap_min; c.mcap_min = c.mcap_max; c.mcap_max = x; }
+      if (!(c.max_age_min >= 1)) c.max_age_min = 1;
       c.require_audit = $("#reqa").checked;
       st.cfg = c;
       if (st.lockAt) st.lockAt = feedMode === "demo" ? st.lockAt : E.nextLockAt(clock(), c.lock);

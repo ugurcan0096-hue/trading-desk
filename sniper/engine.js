@@ -75,7 +75,11 @@
   }
 
   function pushEquity(st, now, kind) {
-    st.equity.push({ t: now, v: +equityValue(st).toFixed(4), k: kind || "mark" });
+    const k = kind || "mark", v = +equityValue(st).toFixed(4);
+    const last = st.equity[st.equity.length - 1];
+    // marks closer than 60 s replace each other; buys/sells always get their own point
+    if (k === "mark" && last && last.k === "mark" && now - last.t < 60000 && st.equity.length > 1) { last.v = v; return; }
+    st.equity.push({ t: now, v, k });
     if (st.equity.length > 2000) st.equity.splice(1, st.equity.length - 2000);
   }
 
