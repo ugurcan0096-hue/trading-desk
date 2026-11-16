@@ -30,26 +30,45 @@
     } catch (e) {}
     return null;
   }
-  function save() { store.set(KEY, JSON.stringify(st)); }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(st)); }
+    catch (e) {
+      // storage full: drop old history and try once more
+      try {
+        st.equity = st.equity.filter((p, i) => i === 0 || p.k !== "mark" || i > st.equity.length - 300);
+        st.log.length = Math.min(st.log.length, 100);
+        st.closed.length = Math.min(st.closed.length, 200);
+        for (const [m, x] of Object.entries(st.seen)) if (x.status !== "watching" && x.status !== "bought") delete st.seen[m];
+        localStorage.setItem(KEY, JSON.stringify(st));
+      } catch (e2) {}
+    }
+  }
 
   /* ---------- loop ---------- */
   async function step() {
     if (busy || st.status !== "live") return;
     busy = true;
+    let netOk = false;
     const now = Date.now();
     try {
       if (now - lastDiscover > (feedMode === "demo" ? 3000 : 30000)) {
         lastDiscover = now;
-        const found = await feed.discover(now);
-        for (const m of found) if (!st.seen[m] && !fresh.includes(m)) fresh.push(m);
-        if (fresh.length > 60) fresh.splice(0, fresh.length - 60);
+        try {
+          const found = await feed.discover(now); netOk = true;
+          for (const m of found) if (!st.seen[m] && !fresh.includes(m)) fresh.push(m);
+          if (fresh.length > 60) fresh.splice(0, fresh.length - 60);
+        } catch (e) {
+          // keep going: open positions still need their stop/trail checks
+          errCount += 1;
+          lastErr = (e && e.name === "AbortError") ? "zaman aşımı" : (e && e.message) || "ağ hatası";
+        }
       }
       const open = st.positions.map((p) => p.mint);
       const watching = E.watchList(st);
       const newOnes = fresh.splice(0, 20);
       const ids = [...new Set([...open, ...watching, ...newOnes])];
       if (ids.length) {
-        const q = await feed.quote(ids, now);
+        const q = await feed.quote(ids, now); netOk = true;
         for (const m of open) if (q[m]) { const r = E.onPrice(st, m, q[m].price, now); if (r) toast(r); }
         for (const m of [...newOnes, ...watching]) {
           const t = q[m];
@@ -64,7 +83,7 @@
         if (open.length) E.pushEquity(st, now, "mark");
       }
       E.tick(st, now);
-      lastErr = ""; errCount = 0;
+      if (netOk) { lastErr = ""; errCount = 0; }
     } catch (e) {
       errCount += 1;
       lastErr = (e && e.name === "AbortError") ? "zaman aşımı" : (e && e.message) || "ağ hatası";
@@ -85,7 +104,12 @@
   function releaseWake() { try { if (wake) wake.release(); } catch (e) {} wake = null; }
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && st.status === "live") grabWake(); });
 
-  function buzz(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
+  function buzz(p) {
+    try {
+      const ua = navigator.userActivation;
+      if (navigator.vibrate && (!ua || ua.hasBeenActive)) navigator.vibrate(p);
+    } catch (e) {}
+  }
 
   let toastT = null;
   function toast(r) {
@@ -234,7 +258,7 @@
     const w = [];
     if (lastErr) w.push(`<p class="note warn">Veri alınamadı (${esc(lastErr)}). Tekrar deneniyor…</p>`);
     if (feedMode === "live" && feed.rugcheckOk === false) w.push(`<p class="note warn">RugCheck'e ulaşılamıyor — Auditor şimdilik sadece likiditeye bakıyor (top10 / mint kontrolü yok).</p>`);
-    if (st.status === "live") w.push(`<p class="note">Bot bu sekmede çalışır: ekranı açık ve uygulamayı önde tut. Kapatırsan kaldığı yerden devam eder ama aradaki fiyatları göremez.</p>`);
+    if (st.status === "live") w.push(`<p class="note">Bot uygulama açıkken çalışır: ekranı açık ve uygulamayı önde tut. Arka plana alırsan Android onu duraklatır; geri döndüğünde kaldığı yerden devam eder.</p>`);
     return w.join("");
   }
 
@@ -285,14 +309,41 @@
 
   function paint() {
     $$(".tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
-    appEl.innerHTML = tab === "config" ? renderConfig() : tab === "activity" ? renderActivity() : renderHome();
+    try {
+      appEl.innerHTML = installBar() + (tab === "config" ? renderConfig() : tab === "activity" ? renderActivity() : renderHome());
+    } catch (e) {
+      appEl.innerHTML = `<h1 class="page">Bir şey ters gitti</h1><p class="note warn">${esc(e && e.message)}</p><div class="cta"><button class="btn" data-act="reload">Yeniden yükle</button></div>`;
+    }
   }
+
+  /* Android: "Yükle" button when Chrome offers install */
+  let installEvt = null;
+  const standalone = () => (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; if (tab !== "config") paint(); });
+  window.addEventListener("appinstalled", () => { installEvt = null; paint(); });
+  function installBar() {
+    if (!installEvt || standalone()) return "";
+    return `<div class="card install"><span class="logo">◎</span><div class="nm"><b>Uygulamayı yükle</b><span>Ana ekrana ikon, tam ekran</span></div><button class="btn go sm" data-act="install">Yükle</button></div>`;
+  }
+
+  /* Android back button: go to Ana sayfa first, then leave the app */
+  function setTab(t, fromHistory) {
+    if (t === tab) return;
+    if (!fromHistory) {
+      if (tab === "home" && t !== "home") history.pushState({ tab: t }, "");
+      else history.replaceState({ tab: t }, "");
+    }
+    tab = t; paint(); window.scrollTo(0, 0);
+  }
+  window.addEventListener("popstate", () => { if (tab !== "home") setTab("home", true); });
+
+  function goHome() { if (tab !== "home") { if (history.state && history.state.tab) history.back(); else setTab("home"); } paint(); }
 
   /* ---------- actions ---------- */
   document.addEventListener("click", (ev) => {
     const t = ev.target.closest("[data-tab],[data-act],[data-budget],[data-feed]");
     if (!t) return;
-    if (t.dataset.tab) { tab = t.dataset.tab; paint(); window.scrollTo(0, 0); return; }
+    if (t.dataset.tab) { setTab(t.dataset.tab); return; }
     if (t.dataset.budget) { if (!st.startedAt) { st = E.newState(Object.assign({}, st.cfg, { budget: +t.dataset.budget }), Date.now()); save(); paint(); } return; }
     if (t.dataset.feed) {
       if (t.dataset.feed === feedMode) return;
@@ -301,10 +352,12 @@
       st = E.newState(st.cfg, Date.now()); save(); paint(); return;
     }
     const a = t.dataset.act, now = Date.now();
+    if (a === "reload") { location.reload(); return; }
+    if (a === "install") { const ev = installEvt; installEvt = null; if (ev) { ev.prompt(); ev.userChoice.finally(paint); } return; }
     if (a === "start") { E.start(st, now); grabWake(); lastDiscover = 0; save(); paint(); step(); }
     else if (a === "stop") { E.stop(st, now); releaseWake(); save(); paint(); }
     else if (a === "again") { st = E.newState(st.cfg, now); E.start(st, now); grabWake(); lastDiscover = 0; fresh.length = 0; save(); paint(); }
-    else if (a === "reset") { if (confirm("Tüm paper geçmişi silinsin mi?")) { st = E.newState(st.cfg, now); fresh.length = 0; save(); tab = "home"; paint(); } }
+    else if (a === "reset") { if (confirm("Tüm paper geçmişi silinsin mi?")) { st = E.newState(st.cfg, now); fresh.length = 0; save(); goHome(); } }
     else if (a === "savecfg") {
       const g = (id) => parseFloat($("#" + id).value);
       const c = Object.assign({}, st.cfg);
@@ -324,7 +377,7 @@
       c.require_audit = $("#reqa").checked;
       st.cfg = c;
       if (st.lockAt) st.lockAt = E.nextLockAt(Date.now(), c.lock);
-      save(); tab = "home"; paint();
+      save(); goHome();
     }
   });
 
