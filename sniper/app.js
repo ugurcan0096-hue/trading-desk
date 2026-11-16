@@ -22,11 +22,17 @@
   const fresh = [];   // mints found by discover, not yet looked at
   let wake = null;
 
+  const DEMO_SPEED = 30, DEMO_NIGHT_MS = 8 * 3600000;
+  function clock() { return feedMode === "demo" ? (st && st.simNow) || Date.now() : Date.now(); }
   function makeFeed() { return feedMode === "demo" ? F.DemoFeed(Date.now() % 100000) : F.LiveFeed(); }
   function load() {
     try {
       const s = JSON.parse(store.get(KEY) || "null");
-      if (s && s.v === 1 && s.cfg) { s.cfg = Object.assign({}, E.DEFAULT_CFG, s.cfg); return s; }
+      if (s && s.v === 1 && s.cfg) {
+        s.cfg = Object.assign({}, E.DEFAULT_CFG, s.cfg);
+        if (s.cfg.judge_wait_s === 30) s.cfg.judge_wait_s = E.DEFAULT_CFG.judge_wait_s; // old slower default
+        return s;
+      }
     } catch (e) {}
     return null;
   }
@@ -49,9 +55,10 @@
     if (busy || st.status !== "live") return;
     busy = true;
     let netOk = false;
-    const now = Date.now();
+    if (feedMode === "demo") st.simNow = (st.simNow || Date.now()) + DEMO_SPEED * 1000;
+    const now = clock();
     try {
-      if (now - lastDiscover > (feedMode === "demo" ? 3000 : 30000)) {
+      if (now - lastDiscover > (feedMode === "demo" ? 0 : 10000)) {
         lastDiscover = now;
         try {
           const found = await feed.discover(now); netOk = true;
@@ -95,7 +102,7 @@
     }
   }
 
-  function interval() { return feedMode === "demo" ? 1000 : (errCount > 3 ? 30000 : 10000); }
+  function interval() { return feedMode === "demo" ? 1000 : (errCount > 3 ? 20000 : 3000); }
   (function loop() { step().finally(() => setTimeout(loop, interval())); })();
 
   async function grabWake() {
@@ -141,9 +148,9 @@
     const justBought = cur && cur.verdict === "buy";
     L.push({ code: `ticket: ${c.ticket.toFixed(2)} * free_cash`, tag: `$${tk.toFixed(2)} = %${Math.round(c.ticket * 100)}`, cls: justBought ? "g" : "" });
     const ls = st.lastStop, lt = st.lastTrail;
-    const stopHot = ls && (!lt || ls.at >= lt.at) && Date.now() - ls.at < 60000;
+    const stopHot = ls && (!lt || ls.at >= lt.at) && clock() - ls.at < 60000 * (feedMode === "demo" ? DEMO_SPEED / 4 : 1);
     L.push({ code: `stop: ${c.stop.toFixed(2)}`, tag: ls ? `${ls.symbol} ${E.sgn(ls.pct * 100, 0)}% · ${E.sgn(ls.pnl, 2, "$")}` : `stop %${Math.round(c.stop * 100)}`, cls: stopHot ? "r" : "" });
-    const trailHot = lt && (!ls || lt.at > ls.at) && Date.now() - lt.at < 60000;
+    const trailHot = lt && (!ls || lt.at > ls.at) && clock() - lt.at < 60000 * (feedMode === "demo" ? DEMO_SPEED / 4 : 1);
     L.push({ code: `trail: {start: ${c.trail.start.toFixed(2)}, give: ${c.trail.give.toFixed(2)}}`, tag: lt ? `${lt.symbol} ${E.sgn(lt.pct * 100, 0)}% · trail çıkış` : `+%${Math.round(c.trail.start * 100)}'den, %${Math.round(c.trail.give * 100)} geri verir`, cls: trailHot ? (lt.pnl >= 0 ? "g" : "y") : "" });
     L.push({ code: `universe: ${c.universe}`, tag: cur ? `#${cur.n} ${cur.symbol} · $${kfmt(cur.tok.mcap)}` : (st.status === "live" ? "Solana memecoin taranıyor" : "Solana memecoin"), cls: st.status === "live" ? "b" : "" });
     const slotSkip = cur && cur.seat === "sizer" && cur.verdict === "skip";
@@ -162,7 +169,7 @@
   function chart() {
     const pts = st.equity;
     const W = 340, H = 150, padL = 34, padR = 8, padT = 10, padB = 16;
-    if (pts.length < 2) pts.push({ t: Date.now(), v: E.equityValue(st), k: "mark" });
+    if (pts.length < 2) pts.push({ t: clock(), v: E.equityValue(st), k: "mark" });
     const t0 = pts[0].t, t1 = Math.max(pts[pts.length - 1].t, t0 + 60000);
     const vs = pts.map((p) => Math.max(p.v, 0.01));
     let lo = Math.min(...vs, st.cfg.budget), hi = Math.max(...vs, st.cfg.budget);
@@ -337,6 +344,11 @@
   }
   window.addEventListener("popstate", () => { if (tab !== "home") setTab("home", true); });
 
+  function startBot(now) {
+    const fresh0 = !st.startedAt;
+    E.start(st, now);
+    if (feedMode === "demo") { if (!st.simNow) st.simNow = now; if (fresh0 || !st.lockAt || st.lockAt <= now) st.lockAt = now + DEMO_NIGHT_MS; }
+  }
   function goHome() { if (tab !== "home") { if (history.state && history.state.tab) history.back(); else setTab("home"); } paint(); }
 
   /* ---------- actions ---------- */
@@ -344,19 +356,19 @@
     const t = ev.target.closest("[data-tab],[data-act],[data-budget],[data-feed]");
     if (!t) return;
     if (t.dataset.tab) { setTab(t.dataset.tab); return; }
-    if (t.dataset.budget) { if (!st.startedAt) { st = E.newState(Object.assign({}, st.cfg, { budget: +t.dataset.budget }), Date.now()); save(); paint(); } return; }
+    if (t.dataset.budget) { if (!st.startedAt) { st = E.newState(Object.assign({}, st.cfg, { budget: +t.dataset.budget }), clock()); save(); paint(); } return; }
     if (t.dataset.feed) {
       if (t.dataset.feed === feedMode) return;
       if (st.startedAt && !confirm("Veri kaynağını değiştirmek geçmişi sıfırlar. Devam?")) return;
       feedMode = t.dataset.feed; store.set(FEED_KEY, feedMode); feed = makeFeed(); fresh.length = 0;
-      st = E.newState(st.cfg, Date.now()); save(); paint(); return;
+      st = E.newState(st.cfg, Date.now()); if (feedMode === "demo") st.simNow = Date.now(); save(); paint(); return;
     }
-    const a = t.dataset.act, now = Date.now();
+    const now = clock(), a = t.dataset.act;
     if (a === "reload") { location.reload(); return; }
     if (a === "install") { const ev = installEvt; installEvt = null; if (ev) { ev.prompt(); ev.userChoice.finally(paint); } return; }
-    if (a === "start") { E.start(st, now); grabWake(); lastDiscover = 0; save(); paint(); step(); }
+    if (a === "start") { startBot(now); grabWake(); lastDiscover = 0; save(); paint(); step(); }
     else if (a === "stop") { E.stop(st, now); releaseWake(); save(); paint(); }
-    else if (a === "again") { st = E.newState(st.cfg, now); E.start(st, now); grabWake(); lastDiscover = 0; fresh.length = 0; save(); paint(); }
+    else if (a === "again") { st = E.newState(st.cfg, now); if (feedMode === "demo") st.simNow = now; startBot(now); grabWake(); lastDiscover = 0; fresh.length = 0; save(); paint(); }
     else if (a === "reset") { if (confirm("Tüm paper geçmişi silinsin mi?")) { st = E.newState(st.cfg, now); fresh.length = 0; save(); goHome(); } }
     else if (a === "savecfg") {
       const g = (id) => parseFloat($("#" + id).value);
@@ -376,7 +388,7 @@
       if (ok(g("slip"))) c.slip = Math.min(0.2, g("slip") / 100);
       c.require_audit = $("#reqa").checked;
       st.cfg = c;
-      if (st.lockAt) st.lockAt = E.nextLockAt(Date.now(), c.lock);
+      if (st.lockAt) st.lockAt = feedMode === "demo" ? st.lockAt : E.nextLockAt(clock(), c.lock);
       save(); goHome();
     }
   });

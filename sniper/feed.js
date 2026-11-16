@@ -154,7 +154,7 @@
       rugcheckOk: true,
       async discover(now) {
         now = now || Date.now();
-        const k = rnd() < 0.6 ? 1 : 0;
+        const k = rnd() < 0.3 ? 1 : 0;
         const out = [];
         for (let i = 0; i < k; i++) out.push(make(now));
         return out;
