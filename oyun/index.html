@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0b0920">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Yörünge">
+  <meta name="description" content="Tek dokunuşla oynanan uzay oyunu: yörünge değiştir, meteorlardan kaç, elmasları topla.">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <title>Yörünge</title>
+  <style>
+    :root { --text: #f3f1ff; --muted: #a9a3d6; --gold: #ffd84d; --cyan: #7cf2ff; --bg: #0b0920; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      touch-action: none; user-select: none; -webkit-user-select: none; overscroll-behavior: none; }
+    canvas { position: fixed; inset: 0; display: block; }
+    .hide { display: none !important; }
+    .layer { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px 16px; text-align: center; pointer-events: none; }
+    .layer button { pointer-events: auto; }
+    h1 { margin: 0; font-size: clamp(44px, 13vw, 76px); letter-spacing: -0.03em; font-weight: 900;
+      background: linear-gradient(180deg, #fff, #b8a4ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .sub { color: var(--muted); font-size: 15px; max-width: 300px; line-height: 1.45; }
+    .btn { font: 800 20px/1 inherit; font-family: inherit; color: #120c2e; background: var(--gold); border: 0; border-radius: 999px; padding: 16px 34px; cursor: pointer; box-shadow: 0 8px 30px rgba(255,216,77,.35); }
+    .btn:active { transform: scale(.96); }
+    .btn.ghost { background: rgba(255,255,255,.1); color: var(--text); box-shadow: none; font-size: 16px; padding: 12px 22px; }
+    .spacer { height: 32vh; }
+    #menu .spacer { height: 40vh; }
+    .big { font-size: clamp(64px, 20vw, 110px); font-weight: 900; line-height: 1; }
+    .row { display: flex; gap: 10px; }
+    #hud { position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); left: 0; right: 0; text-align: center; pointer-events: none; }
+    #score { font-size: 54px; font-weight: 900; text-shadow: 0 4px 24px rgba(124,242,255,.35); display: inline-block; }
+    #score.pop { animation: pop .18s ease-out; }
+    @keyframes pop { 50% { transform: scale(1.18); } }
+    #best { color: var(--muted); font-size: 13px; font-weight: 700; }
+    #mute { position: fixed; z-index: 5; top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; width: 42px; height: 42px; border-radius: 50%; border: 0; background: rgba(255,255,255,.08); font-size: 18px; color: #fff; cursor: pointer; }
+    .newbest { color: var(--gold); font-weight: 900; font-size: 18px; letter-spacing: .04em; }
+    .hint { color: var(--muted); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <canvas id="cv"></canvas>
+
+  <div id="menu" class="layer">
+    <h1>Yörünge</h1>
+    <div class="sub">Ekrana dokun, iç ve dış yörünge arasında atla. Meteorlardan kaç, elmasları topla!</div>
+    <div class="spacer"></div>
+    <button id="play" class="btn">▶ Oyna</button>
+    <div id="menuBest" class="hint"></div>
+    <button id="install" class="btn ghost hide">📲 Telefona yükle</button>
+  </div>
+
+  <div id="hud" class="hide"><div id="score">0</div><div id="best"></div></div>
+
+  <div id="over" class="layer hide">
+    <div class="hint">SKOR</div>
+    <div id="final" class="big">0</div>
+    <div id="newBest" class="newbest hide">★ YENİ REKOR ★</div>
+    <div class="hint">En iyi: <b id="finalBest">0</b></div>
+    <div class="spacer"></div>
+    <div class="row"><button id="again" class="btn">↻ Tekrar</button><button id="share" class="btn ghost">Paylaş</button></div>
+    <div class="hint">ya da ekrana dokun</div>
+  </div>
+
+  <button id="mute" aria-label="Ses">🔊</button>
+  <script src="game.js?v=1"></script>
+  <script>
+    if ("serviceWorker" in navigator && location.protocol !== "file:") {
+      navigator.serviceWorker.register("./sw.js", { scope: "./", updateViaCache: "none" }).then(function (r) {
+        try { var p = r.update(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+      }).catch(function () {});
+    }
+  </script>
+</body>
+</html>
