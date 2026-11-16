@@ -1,8 +1,8 @@
 {
-  "name": "Yörünge",
-  "short_name": "Yörünge",
-  "description": "Tek dokunuşla oynanan uzay oyunu.",
-  "lang": "tr",
+  "name": "Orbit Dash",
+  "short_name": "Orbit Dash",
+  "description": "One-tap space game.",
+  "lang": "en",
   "id": "./",
   "start_url": "./",
   "scope": "./",
