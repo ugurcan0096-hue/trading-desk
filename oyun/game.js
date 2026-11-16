@@ -13,8 +13,12 @@
   };
 
   const store = {
-    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem(k, String(v)); } catch (e) {} },
+    get(k, d) {
+      try { const v = window.Platform ? window.Platform.storage.get(k) : localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; }
+    },
+    set(k, v) {
+      try { if (window.Platform) window.Platform.storage.set(k, v); else localStorage.setItem(k, String(v)); } catch (e) {}
+    },
   };
   let best = parseInt(store.get("yorunge_best", "0"), 10) || 0;
   let muted = store.get("yorunge_mute", "0") === "1";
@@ -92,7 +96,7 @@
   /* ---------- sound (tiny synth, no files) ---------- */
   let ac = null;
   function beep(freq, dur, type, vol, slide) {
-    if (muted || adPlaying) return;
+    if (muted || adPlaying || (window.Platform && window.Platform.sdkMuted)) return;
     try {
       ac = ac || new (window.AudioContext || window.webkitAudioContext)();
       if (ac.state === "suspended") ac.resume();
@@ -574,7 +578,7 @@
     if (best < SKINS[i].need) { beep(180, 0.12, "square", 0.06); b.classList.add("shake"); setTimeout(() => b.classList.remove("shake"), 400); return; }
     skin = i; store.set("yorunge_skin", i); renderSkins(); beep(660, 0.08, "sine", 0.08);
   });
-  function setMute(m) { muted = m; store.set("yorunge_mute", m ? "1" : "0"); ui.mute.textContent = m ? "🔇" : "🔊"; }
+  function setMute(m) { muted = m; store.set("yorunge_mute", m ? "1" : "0"); ui.mute.textContent = m || (window.Platform && window.Platform.sdkMuted) ? "🔇" : "🔊"; }
   ui.mute.addEventListener("click", () => setMute(!muted));
 
   let installEvt = null;
@@ -591,7 +595,18 @@
   });
 
   PF.init().then(() => {
-    if (PF.name === "crazygames") { $("share").classList.add("hide"); $("install").classList.add("hide"); }
+    if (PF.name !== "crazygames") return;
+    $("share").classList.add("hide"); $("install").classList.add("hide");
+    // saved progress may live in the CrazyGames Data Module: read it again now that the SDK is ready
+    best = Math.max(best, parseInt(store.get("yorunge_best", "0"), 10) || 0);
+    muted = store.get("yorunge_mute", muted ? "1" : "0") === "1";
+    lastName = store.get("yorunge_name", lastName);
+    board = loadBoard();
+    const sk = parseInt(store.get("yorunge_skin", String(skin)), 10) || 0;
+    skin = SKINS[sk] && SKINS[sk].need <= best ? sk : 0;
+    setMute(muted);
+    if (typeof refreshMenuText === "function") refreshMenuText();
+    PF.onMuteChange(() => setMute(muted));
   }).catch(() => {});
   setMute(muted);
   // language menu
