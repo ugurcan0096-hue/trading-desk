@@ -118,8 +118,8 @@
 
   function seatJudge(c, tok, seen) {
     const ch = tok.price / seen.spotPrice - 1;
-    const s = (ch >= 0 ? "+" : "") + Math.round(ch * 100) + "%";
-    if (ch > c.chase_max) return { ok: false, why: "kovalama " + s + " (max %" + Math.round(c.chase_max * 100) + ")" };
+    const s = tp(ch * 100);
+    if (ch > c.chase_max) return { ok: false, why: "kovalama " + s + " (max " + tp(c.chase_max * 100) + ")" };
     if (ch < c.chase_min) return { ok: false, why: "düşüşte " + s };
     if (tok.buys5m != null && tok.sells5m != null && tok.sells5m > tok.buys5m * 1.5) return { ok: false, why: "satış baskısı " + tok.sells5m + "/" + tok.buys5m };
     return { ok: true, why: s + " görüldüğünden beri · ok" };
@@ -173,7 +173,7 @@
     }
     buy(st, tok, z.amt, now);
     s.status = "bought";
-    setCurrent(st, tok, s, "risk", "buy", "AL $" + z.amt.toFixed(2) + " · stop %" + Math.round(c.stop * 100) + " kuruldu");
+    setCurrent(st, tok, s, "risk", "buy", "AL $" + z.amt.toFixed(2) + " · stop " + tp(c.stop * 100) + " kuruldu");
     return { seat: "risk", ok: true, buy: z.amt };
   }
 
@@ -216,7 +216,7 @@
     p.last = price;
     if (price > p.peak) p.peak = price;
     const up = p.peak / p.ref - 1;
-    if (!p.trailOn && up >= c.trail.start) { p.trailOn = true; log(st, now, "Trail aktif " + p.symbol + " +" + Math.round(up * 100) + "%", "info"); }
+    if (!p.trailOn && up >= c.trail.start) { p.trailOn = true; log(st, now, "Trail aktif " + p.symbol + " " + tp(up * 100), "info"); }
     if (p.trailOn && price <= p.peak * (1 - c.trail.give)) return sell(st, p, price, now, "trail");
     if (price <= p.ref * (1 + c.stop)) return sell(st, p, price, now, "stop");
     return null;
@@ -236,7 +236,7 @@
     if (reason === "stop") st.lastStop = row;
     if (reason === "trail") st.lastTrail = row;
     const verb = reason === "stop" ? "Stop" : reason === "lock" ? "Kilit" : "Sat";
-    log(st, now, verb + " " + p.symbol + " " + sgn(pct * 100, 1) + "% · " + sgn(pnl, 2, "$"), pnl >= 0 ? "win" : "loss");
+    log(st, now, verb + " " + p.symbol + " " + tp(pct * 100, 1) + " · " + sgn(pnl, 2, "$"), pnl >= 0 ? "win" : "loss");
     pushEquity(st, now, reason === "stop" ? "stop" : "sell");
     return row;
   }
@@ -289,9 +289,15 @@
     const s = n >= 0 ? "+" : "−";
     return s + (pre || "") + Math.abs(n).toFixed(d);
   }
+  // Turkish style: +%12, −%8,4
+  function tp(n, d) {
+    if (n == null || isNaN(n)) return "—";
+    const v = Math.abs(n).toFixed(d || 0).replace(".", ",");
+    return (n > 0 ? "+" : n < 0 ? "−" : "") + "%" + v;
+  }
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
-  const api = { DEFAULT_CFG, SEATS, newState, start, stop, onToken, onPrice, tick, sell, watchList, summary, equityValue, pushEquity, nextLockAt, kfmt, pfmt, sgn, cap };
+  const api = { DEFAULT_CFG, SEATS, newState, start, stop, onToken, onPrice, tick, sell, watchList, summary, equityValue, pushEquity, nextLockAt, kfmt, pfmt, sgn, tp, cap };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.SniperEngine = api;
 })(typeof window !== "undefined" ? window : globalThis);
