@@ -24,7 +24,7 @@
     max_top10: 0.30,
     chase_max: 0.25,              // Judge: skip if price ran > +25% since spotted
     chase_min: -0.10,             // Judge: skip if it already dumped > 10%
-    judge_wait_s: 30,             // Judge looks again after this many seconds
+    judge_wait_s: 15,             // Judge looks again after this many seconds
     judge_timeout_min: 15,        // forget a token nobody bought after this
     min_ticket: 5,
     slip: 0.01,                   // paper fill cost each way (1% buy, 1% sell)
