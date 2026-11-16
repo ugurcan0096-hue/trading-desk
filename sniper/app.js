@@ -124,7 +124,7 @@
     const win = r.pnl >= 0;
     const verb = r.reason === "stop" ? "Stop" : r.reason === "lock" ? "Kilit" : "Satıldı";
     el.className = "toast" + (win ? "" : " loss");
-    el.innerHTML = `${avatar(r)}<div class="nm"><b>${verb} ${esc(r.symbol)}</b><span>${E.sgn(r.pct * 100, 1)}% · $${r.cost.toFixed(2)} → $${r.proceeds.toFixed(2)}</span></div><div class="pl ${win ? "pos" : "neg"}">${E.sgn(r.pnl, 2, "$")}</div>`;
+    el.innerHTML = `${avatar(r)}<div class="nm"><b>${verb} ${esc(r.symbol)}</b><span>${E.tp(r.pct * 100, 1)} · $${r.cost.toFixed(2)} → $${r.proceeds.toFixed(2)}</span></div><div class="pl ${win ? "pos" : "neg"}">${E.sgn(r.pnl, 2, "$")}</div>`;
     buzz(win ? [30] : [80, 40, 80]);
     clearTimeout(toastT);
     toastT = setTimeout(() => el.classList.add("hidden"), 4500);
@@ -138,7 +138,7 @@
     const ch = esc((x.symbol || "?").charAt(0));
     return `<div class="av">${x.icon ? `<img src="${esc(x.icon)}" alt="" loading="lazy" onerror="this.remove()">` : ""}${x.icon ? "" : ch}</div>`;
   }
-  function pctS(n) { return E.sgn(n * 100, 0) + "%"; }
+  function pctS(n) { return E.tp(n * 100, 0); }
 
   function lines() {
     const c = st.cfg, cur = st.current, sm = E.summary(st);
@@ -149,9 +149,9 @@
     L.push({ code: `ticket: ${c.ticket.toFixed(2)} * free_cash`, tag: `$${tk.toFixed(2)} = %${Math.round(c.ticket * 100)}`, cls: justBought ? "g" : "" });
     const ls = st.lastStop, lt = st.lastTrail;
     const stopHot = ls && (!lt || ls.at >= lt.at) && clock() - ls.at < 60000 * (feedMode === "demo" ? DEMO_SPEED / 4 : 1);
-    L.push({ code: `stop: ${c.stop.toFixed(2)}`, tag: ls ? `${ls.symbol} ${E.sgn(ls.pct * 100, 0)}% · ${E.sgn(ls.pnl, 2, "$")}` : `stop %${Math.round(c.stop * 100)}`, cls: stopHot ? "r" : "" });
+    L.push({ code: `stop: ${c.stop.toFixed(2)}`, tag: ls ? `${ls.symbol} ${E.tp(ls.pct * 100, 0)} · ${E.sgn(ls.pnl, 2, "$")}` : `stop ${E.tp(c.stop * 100)}`, cls: stopHot ? "r" : "" });
     const trailHot = lt && (!ls || lt.at > ls.at) && clock() - lt.at < 60000 * (feedMode === "demo" ? DEMO_SPEED / 4 : 1);
-    L.push({ code: `trail: {start: ${c.trail.start.toFixed(2)}, give: ${c.trail.give.toFixed(2)}}`, tag: lt ? `${lt.symbol} ${E.sgn(lt.pct * 100, 0)}% · trail çıkış` : `+%${Math.round(c.trail.start * 100)}'den, %${Math.round(c.trail.give * 100)} geri verir`, cls: trailHot ? (lt.pnl >= 0 ? "g" : "y") : "" });
+    L.push({ code: `trail: {start: ${c.trail.start.toFixed(2)}, give: ${c.trail.give.toFixed(2)}}`, tag: lt ? `${lt.symbol} ${E.tp(lt.pct * 100, 0)} · trail çıkış` : `${E.tp(c.trail.start * 100)}'den, %${Math.round(c.trail.give * 100)} geri verir`, cls: trailHot ? (lt.pnl >= 0 ? "g" : "y") : "" });
     L.push({ code: `universe: ${c.universe}`, tag: cur ? `#${cur.n} ${cur.symbol} · $${kfmt(cur.tok.mcap)}` : (st.status === "live" ? "Solana memecoin taranıyor" : "Solana memecoin"), cls: st.status === "live" ? "b" : "" });
     const slotSkip = cur && cur.seat === "sizer" && cur.verdict === "skip";
     L.push({ code: `max_open: ${c.max_open}`, tag: slotSkip ? `${st.positions.length}/${c.max_open} açık · ${cur.symbol} atla` : `${st.positions.length}/${c.max_open} açık`, cls: slotSkip ? "y" : "" });
@@ -228,14 +228,17 @@
       <div class="seat-why">${c ? `<b>${E.cap(c.seat)}</b> · ${bad ? "✗ " : ""}${esc(c.reason)}` : (st.status === "live" ? "yeni Solana tokenleri taranıyor" : "Başlat'a bas")}</div></div>`;
   }
 
-  function closedList(n) {
-    const rows = st.closed.slice(0, n || 12);
-    const open = st.positions.map((p) => {
+  function openList() {
+    return st.positions.map((p) => {
       const pct = p.last / p.ref - 1;
-      return `<div class="row"><span class="t">${hhmm(p.openedAt)}</span><span class="d" style="background:var(--blue)"></span>${avatar(p)}<div class="nm"><b>Açık ${esc(p.symbol)}</b><span>${p.trailOn ? "trail aktif · zirve " + pctS(p.peak / p.ref - 1) : "stop %" + Math.round(st.cfg.stop * 100) + " kurulu"}</span></div><div class="pl ${pct >= 0 ? "pos" : "neg"}">${pctS(pct)}<span>$${p.cost.toFixed(2)}</span></div></div>`;
+      return `<div class="row"><span class="t">${hhmm(p.openedAt)}</span><span class="d" style="background:var(--blue)"></span>${avatar(p)}<div class="nm"><b>${esc(p.symbol)}</b><span>${p.trailOn ? "trail aktif · zirve " + pctS(p.peak / p.ref - 1) : "stop " + E.tp(st.cfg.stop * 100) + " kurulu"}</span></div><div class="pl ${pct >= 0 ? "pos" : "neg"}">${pctS(pct)}<span>$${p.cost.toFixed(2)}</span></div></div>`;
     }).join("");
-    const closed = rows.map((r) => `<div class="row"><span class="t">${hhmm(r.at)}</span><span class="d" style="background:${r.pnl >= 0 ? "var(--green)" : "var(--red)"}"></span>${avatar(r)}<div class="nm"><b>${r.reason === "stop" ? "Stop" : r.reason === "lock" ? "Kilit" : "Satıldı"} ${esc(r.symbol)}</b><span>${r.reason === "stop" ? "stop %" + Math.round(st.cfg.stop * 100) : r.reason === "lock" ? "07:00 kilit" : "trail çıkış"}</span></div><div class="pl ${r.pnl >= 0 ? "pos" : "neg"}">${E.sgn(r.pnl, 2, "$")}<span>${E.sgn(r.pct * 100, 1)}%</span></div></div>`).join("");
-    return open + closed || `<div class="empty">Henüz işlem yok</div>`;
+  }
+
+  function closedList(n) {
+    const why = (r) => r.reason === "stop" ? "stop " + E.tp(st.cfg.stop * 100) + " tetiklendi" : r.reason === "lock" ? st.cfg.lock + " kilit" : "trail çıkış";
+    const rows = st.closed.slice(0, n || 12).map((r) => `<div class="row"><span class="t">${hhmm(r.at)}</span><span class="d" style="background:${r.pnl >= 0 ? "var(--green)" : "var(--red)"}"></span>${avatar(r)}<div class="nm"><b>${r.reason === "stop" ? "Stop" : r.reason === "lock" ? "Kilit" : "Satıldı"} ${esc(r.symbol)}</b><span>${why(r)}</span></div><div class="pl ${r.pnl >= 0 ? "pos" : "neg"}">${E.sgn(r.pnl, 2, "$")}<span>${E.tp(r.pct * 100, 1)}</span></div></div>`).join("");
+    return rows || `<div class="empty">Henüz kapanan işlem yok</div>`;
   }
 
   function header() {
@@ -269,14 +272,11 @@
     return w.join("");
   }
 
-  function ticker() {
-    const items = st.closed.slice(0, 14).map((r) => `<span class="${r.pnl >= 0 ? "pos" : "neg"}">${esc(r.symbol)} ${E.sgn(r.pct * 100, 1)}% ${E.sgn(r.pnl, 2, "$")}</span>`).join(" · ");
-    return items ? `<div class="ticker"><div>${items}</div></div>` : "";
-  }
-
   function renderHome() {
     return header() + controls() + finalCard() + cfgCard() + chart() + statsRow() + tokCard() + seatsCard() + warnings() +
-      `<div class="sec-h"><h2>Bu gece kapananlar <span class="muted" style="font-size:12px;font-weight:500">${st.closed.length} işlem</span></h2><span>paper · SIM</span></div>` + closedList(12) + ticker();
+      (st.positions.length ? `<div class="sec-h"><h2>Açık pozisyonlar <span class="muted" style="font-size:12px;font-weight:500">${st.positions.length}/${st.cfg.max_open}</span></h2><span>canlı fiyat</span></div>` + openList() : "") +
+      `<div class="sec-h"><h2>Bu gece kapananlar <span class="muted" style="font-size:12px;font-weight:500">${st.closed.length} işlem</span></h2><span>paper · SIM</span></div>` + closedList(12) +
+      (st.closed.length ? `<p class="note">Sonuçlar kayma ve ücret dahil (her yönde %${(st.cfg.slip * 100).toFixed(1).replace(".", ",")}). Bu yüzden −%8 stop genelde −%10 civarında kapanır; hızlı düşüşte daha kötü olabilir.</p>` : "");
   }
 
   function num(id, v, step, min, max, lab, sub) {
