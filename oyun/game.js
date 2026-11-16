@@ -551,7 +551,7 @@
 
   /* ---------- input ---------- */
   function onPress(e) {
-    if (e.target.closest && e.target.closest("button, input, select, option, label, .langwrap, .skins, .panel, a")) return; // UI handles itself
+    if (e.target.closest && e.target.closest("button, input, textarea, select, option, label, .langwrap, .skins, .panel, a, #board, #sharePanel")) return; // UI handles itself
     e.preventDefault();
     tap();
   }
@@ -599,10 +599,27 @@
         try { await navigator.share({ title: T("title"), text, url }); return; }
         catch (e) { if (e && e.name === "AbortError") return; /* cancelled by the player */ }
       }
-      if (await copyText(text + " " + url)) { flash(T("copied")); return; }
-      window.prompt(T("share"), text + " " + url);
+      openSharePanel(text, url);
     } finally { shareBusy = false; }
   });
+
+  // Our own share panel: works even inside in-app browsers that block the share sheet, clipboard and prompts.
+  function openSharePanel(text, url) {
+    const full = text + " " + url;
+    const enc = encodeURIComponent;
+    $("shareText").value = full;
+    $("shWa").href = "https://wa.me/?text=" + enc(full);
+    $("shTg").href = "https://t.me/share/url?url=" + enc(url) + "&text=" + enc(text);
+    $("shX").href = "https://twitter.com/intent/tweet?text=" + enc(text) + "&url=" + enc(url);
+    $("shCopy").textContent = T("copy");
+    $("sharePanel").classList.remove("hide");
+  }
+  $("shCopy").addEventListener("click", async () => {
+    const ta = $("shareText");
+    try { ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length); } catch (e) {}
+    $("shCopy").textContent = (await copyText(ta.value)) ? T("copied") : T("copyHint");
+  });
+  $("shClose").addEventListener("click", () => $("sharePanel").classList.add("hide"));
   ui.skins.addEventListener("click", (e) => {
     const b = e.target.closest("[data-skin]"); if (!b) return;
     const i = +b.dataset.skin;

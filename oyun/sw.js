@@ -1,5 +1,5 @@
 /* Yörünge service worker: works offline after the first visit. */
-const CACHE = "yorunge-v11";
+const CACHE = "yorunge-v12";
 const SHELL = ["./", "./index.html", "./game.js", "./platform.js", "./i18n.js", "./manifest.json", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-192-maskable.png", "./icons/icon-512-maskable.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {}).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith("yorunge-") && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
