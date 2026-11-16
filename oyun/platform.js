@@ -37,6 +37,11 @@
         } catch (e) {}
       } catch (e) { /* SDK failed: play without ads */ }
     },
+    // CrazyGames username, or "" (guest / not available)
+    async username() {
+      try { if (P._sdk && P._sdk.user && P._sdk.user.getUser) { const u = await P._sdk.user.getUser(); return (u && u.username) || ""; } } catch (e) {}
+      return "";
+    },
     gameplayStart() { try { P._sdk && P._sdk.game.gameplayStart(); } catch (e) {} },
     gameplayStop() { try { P._sdk && P._sdk.game.gameplayStop(); } catch (e) {} },
     happytime() { try { P._sdk && P._sdk.game.happytime(); } catch (e) {} },
