@@ -51,6 +51,8 @@
         const lists = await Promise.allSettled([
           getJSON(DS + "/token-profiles/latest/v1"),
           getJSON(DS + "/token-boosts/latest/v1"),
+          getJSON(DS + "/token-boosts/top/v1"),
+          getJSON(DS + "/community-takeovers/latest/v1"),
         ]);
         const mints = [];
         for (const r of lists) {
@@ -91,7 +93,7 @@
         auditing.add(mint);
         getJSON(RC + "/tokens/" + mint + "/report", 15000).then((r) => {
           const known = r.knownAccounts || {};
-          const skip = (a) => known[a] && /amm|pool|lock/i.test(known[a].type || known[a].name || "");
+          const skip = (a) => known[a] && /amm|pool|lock|bonding|curve|pump|raydium|meteora|orca|vault/i.test(known[a].type || known[a].name || "");
           const holders = (r.topHolders || []).filter((h) => !skip(h.address) && !skip(h.owner));
           const top10 = holders.slice(0, 10).reduce((s, h) => s + (+h.pct || 0), 0) / 100;
           audits[mint] = {

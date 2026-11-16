@@ -31,7 +31,11 @@
       const s = JSON.parse(store.get(KEY) || "null");
       if (s && s.v === 1 && s.cfg) {
         s.cfg = Object.assign({}, E.DEFAULT_CFG, s.cfg);
-        if (s.cfg.judge_wait_s === 30) s.cfg.judge_wait_s = E.DEFAULT_CFG.judge_wait_s; // old slower default
+        if (!(s.cfg.cv >= 2)) {
+          for (const k of ["min_liq", "mcap_min", "mcap_max", "max_age_min", "max_top10", "chase_min", "judge_wait_s", "min_ticket", "cv"]) s.cfg[k] = E.DEFAULT_CFG[k];
+          if (!s.startedAt) { s.cfg.budget = E.DEFAULT_CFG.budget; s.cash = s.cfg.budget; s.equity = [{ t: Date.now(), v: s.cfg.budget, k: "start" }]; }
+        }
+        s.why = s.why || {};
         return s;
       }
     } catch (e) {}
@@ -60,7 +64,7 @@
     if (feedMode === "demo") st.simNow = (st.simNow || Date.now()) + DEMO_SPEED * 1000;
     const now = clock();
     try {
-      if (st.status === "live" && now - lastDiscover > (feedMode === "demo" ? 0 : 10000)) {
+      if (st.status === "live" && now - lastDiscover > (feedMode === "demo" ? 0 : 5000)) {
         lastDiscover = now;
         try {
           const found = await feed.discover(now); netOk = true;
@@ -263,7 +267,7 @@
     if (st.status === "live") return `<div class="cta"><button class="btn stop" data-act="stop">Durdur</button></div>`;
     const managingNote = st.positions.length ? `<p class="note">Durduruldu: yeni alım yok. Açık ${st.positions.length} pozisyon stop / trail ile takip ediliyor.</p>` : "";
     if (st.status === "locked") return `<div class="cta"><button class="btn go" data-act="again">Bu gece aynı $${st.cfg.budget}?</button></div>`;
-    return `<div class="seg" style="margin-bottom:8px">${[50, 100, 250].map((b) => `<button data-budget="${b}" class="${st.cfg.budget === b ? "on" : ""}" ${st.startedAt ? "disabled" : ""}>$${b}</button>`).join("")}</div>
+    return `<div class="seg" style="margin-bottom:8px">${[20, 50, 100].map((b) => `<button data-budget="${b}" class="${st.cfg.budget === b ? "on" : ""}" ${st.startedAt ? "disabled" : ""}>$${b}</button>`).join("")}</div>
       <div class="cta"><button class="btn go" data-act="start">${st.startedAt ? "Devam et" : "Başlat · $" + st.cfg.budget + " paper"}</button></div>` + managingNote;
   }
 
@@ -277,6 +281,7 @@
     const w = [];
     if (lastErr) w.push(`<p class="note warn">Veri alınamadı (${esc(lastErr)}). Tekrar deneniyor…</p>`);
     if (feedMode === "live" && feed.rugcheckOk === false) w.push(`<p class="note warn">RugCheck'e ulaşılamıyor — Auditor şimdilik sadece likiditeye bakıyor (top10 / mint kontrolü yok).</p>`);
+    if (st.status === "live" && st.stats.bought === 0 && st.stats.scanned > 0) w.push(`<p class="note">${st.stats.scanned} coin tarandı, henüz hiçbiri 5 koltuğu geçmedi. Sebepler için <b>Aktivite</b> sekmesine bak.</p>`);
     if (st.status === "live") w.push(`<p class="note">Bot uygulama açıkken çalışır: ekranı açık ve uygulamayı önde tut. Arka plana alırsan Android onu duraklatır; geri döndüğünde kaldığı yerden devam eder.</p>`);
     return w.join("");
   }
@@ -318,8 +323,27 @@
       <p class="note">Bu tamamen <b>paper</b> (sanal para). Gerçek cüzdan, anahtar veya ödeme yok. Videodaki gibi 38× sonuçlar gerçekçi değil: memecoinlerin çoğu sıfıra gider ve stop, hızlı düşüşlerde çok daha kötü dolar. Fiyat ~3 saniyede bir kontrol edildiği için stop'lar o anki fiyattan dolar.</p>`;
   }
 
+  function whyPanel() {
+    const names = { watcher: "Watcher", auditor: "Auditor", judge: "Judge", sizer: "Sizer" };
+    const w = st.why || {};
+    const rows = Object.keys(names).map((seat) => {
+      const r = w[seat] || {};
+      const total = Object.values(r).reduce((a, b) => a + b, 0);
+      if (!total) return "";
+      const top = Object.entries(r).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => `${esc(k)} ×${n}`).join(" · ");
+      return `<div class="row"><div class="nm"><b>${names[seat]} · ${total} red</b><span>${top}</span></div></div>`;
+    }).join("");
+    const live = st.status === "live";
+    const head = `<div class="sec-h"><h2>Neden almıyor?</h2><span>${st.stats.scanned} taranan · ${st.stats.bought} alım</span></div>`;
+    let hint = "";
+    if (live && lastErr) hint = `<p class="note warn">Veri gelmiyor: ${esc(lastErr)}. İnternet bağlantını kontrol et.</p>`;
+    else if (live && st.stats.scanned === 0) hint = `<p class="note">Henüz coin gelmedi. İlk tarama birkaç saniye sürer.</p>`;
+    else if (!live && !st.startedAt) hint = `<p class="note">Bot başlatılmadı. Ana sayfada <b>Başlat</b>'a bas.</p>`;
+    return head + (rows ? `<div class="card" style="padding:2px 12px">${rows}</div>` : "") + hint;
+  }
+
   function renderActivity() {
-    return `<h1 class="page">Aktivite</h1>
+    return `<h1 class="page">Aktivite</h1>` + whyPanel() + `<div class="sec-h"><h2>Kayıt</h2><span></span></div>
       <div class="card" style="padding:4px 12px"><div class="log">${st.log.slice(0, 150).map((l) => `<div class="row"><span class="t">${hhmm(l.t)}</span><div class="nm ${l.k === "win" ? "pos" : l.k === "loss" ? "neg" : l.k === "skip" ? "muted" : ""}">${esc(l.text)}</div></div>`).join("") || `<div class="empty">Henüz kayıt yok</div>`}</div></div>`;
   }
 
