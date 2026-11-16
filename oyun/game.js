@@ -71,7 +71,7 @@
     { sky: ["#2e2408", "#120d02"], planet: ["#ffe9a3", "#f0a92b", "#7a4a08"], glow: "255,190,60", ring: "255,220,140" },
     { sky: ["#0d2e1a", "#04140a"], planet: ["#b5ffcf", "#2fcf73", "#0b5a2c"], glow: "60,230,130", ring: "140,255,190" },
   ];
-  const LEVEL_EVERY = 40;
+  const LEVEL_EVERY = 60;
 
   /* ---------- sizing ---------- */
   let W = 0, H = 0, DPR = 1, CX = 0, CY = 0, R = [0, 0], U = 1;
@@ -124,8 +124,8 @@
   function newGame() {
     g = {
       t: 0, ang: -Math.PI / 2, ring: 1, rad: R[1], from: R[1], switchT: 1,
-      speed: 1.55, score: 0, combo: 0, comboT: 0, level: 1, shield: false, shieldT: 0,
-      items: [], nextAt: 0.9, travelled: 0,
+      speed: 1.25, score: 0, combo: 0, comboT: 0, level: 1, shield: false, shieldT: 0,
+      items: [], nextAt: 2.2, travelled: 0,
       parts: [], texts: [], shake: 0, dead: false, deadT: 0, trail: [], banner: null, flash: 0,
     };
     setTheme(0, true);
@@ -139,11 +139,11 @@
 
   function spawn() {
     // Place things ahead of the ship, never closing both orbits at the same spot.
-    const ahead = g.ang + Math.PI * (0.95 + Math.random() * 0.25);
-    const hard = Math.min(1, g.score / 150);
+    const ahead = g.ang + Math.PI * (0.72 + Math.random() * 0.12);
+    const hard = Math.min(1, g.score / 250);
     const roll = Math.random();
     const ring = Math.random() < 0.5 ? 0 : 1;
-    const spin = g.score > 25 && Math.random() < 0.2 + hard * 0.25 ? (Math.random() < 0.5 ? -1 : 1) * (0.15 + Math.random() * 0.25) : 0;
+    const spin = g.score > 80 && Math.random() < 0.1 + hard * 0.2 ? (Math.random() < 0.5 ? -1 : 1) * (0.15 + Math.random() * 0.25) : 0;
     if (g.score > 15 && !g.shield && roll < 0.05) {
       g.items.push({ kind: "shield", ring, ang: ahead, spin: 0, r: U * 0.024, born: g.t });
     } else if (roll < 0.25) {
@@ -152,7 +152,7 @@
       g.items.push({ kind: "rock", ring, ang: ahead, spin, r: U * (0.026 + Math.random() * 0.012), born: g.t, rot: Math.random() * TAU, near: false, seed: Math.random() });
       if (Math.random() < 0.3) g.items.push({ kind: "gem", ring: 1 - ring, ang: ahead, spin: 0, r: U * 0.022, born: g.t });
     }
-    g.nextAt = Math.max(0.55, 1.05 - hard * 0.45) * (0.85 + Math.random() * 0.4);
+    g.nextAt = Math.max(0.75, 1.3 - hard * 0.5) * (0.9 + Math.random() * 0.35);
   }
 
   function tap() {
@@ -255,7 +255,7 @@
     if (g.banner) { g.banner.t += dt; if (g.banner.t > 1.6) g.banner = null; }
     if (state !== "play" || g.dead) return;
 
-    g.speed = Math.min(3.6, 1.55 + g.t * 0.028 + g.score * 0.006);
+    g.speed = Math.min(3.0, 1.25 + g.t * 0.016 + g.score * 0.004);
     const da = g.speed * dt;
     g.ang += da; g.travelled += da;
     if (g.travelled >= g.nextAt) { g.travelled = 0; spawn(); }
@@ -277,7 +277,7 @@
       if (a.kind !== "rock" || !a.spin) continue;
       for (const b of g.items) {
         if (b === a || b.kind !== "rock" || b.ring === a.ring) continue;
-        if (Math.abs(angDiff(a.ang + a.spin * 0.6, b.ang)) < 0.42) { a.spin = 0; break; }
+        if (Math.abs(a.ang + a.spin * 0.6 - b.ang) < 0.5) { a.spin = 0; break; }
       }
     }
 
@@ -286,11 +286,11 @@
       if (it.dead) continue;
       it.ang += it.spin * dt;
       if (it.rot != null) it.rot += dt * 1.5;
-      const d = angDiff(it.ang, g.ang);
+      const d = it.ang - g.ang;
       const p = itemPos(it);
       const dist = Math.hypot(p.x - sp.x, p.y - sp.y);
       if (it.kind === "rock") {
-        if (dist < it.r + shipR * 0.8) {
+        if (dist < it.r * 0.85 + shipR * 0.7) {
           if (g.shield) {
             it.dead = true; g.shield = false; g.shake = 9;
             burst(p, "#8b5a44", 24, 1.2); burst(p, "#7cc8ff", 24, 1);
@@ -319,7 +319,7 @@
         }
       }
     }
-    g.items = g.items.filter((it) => !it.dead && angDiff(it.ang, g.ang) > -Math.PI * 0.9);
+    g.items = g.items.filter((it) => !it.dead && it.ang - g.ang > -1.4);
   }
 
   /* ---------- draw ---------- */
@@ -387,10 +387,13 @@
     if (g) {
       for (const it of g.items) {
         const p = itemPos(it);
+        const ahead = it.ang - g.ang;
+        ctx.globalAlpha = Math.max(0, Math.min(1, (g.t - it.born) / 0.4, (ahead + 1.4) / 0.6));
         if (it.kind === "rock") drawRock(p, it.r, it.rot || 0, it.seed || 0);
         else if (it.kind === "gem") drawGem(p, it.r, t);
         else drawShieldItem(p, it.r, t);
       }
+      ctx.globalAlpha = 1;
       if (!g.dead && state === "play") {
         const sk = SKINS[skin];
         for (let i = 0; i < g.trail.length; i++) {
