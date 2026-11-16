@@ -19,6 +19,7 @@
   let st = load() || E.newState({}, Date.now());
   let tab = "home";
   let busy = false, lastDiscover = 0, lastErr = "", errCount = 0;
+  const diag = { scanAt: 0, found: 0, scans: 0, okAt: 0 }; // shown in the status line
   const fresh = [];   // mints found by discover, not yet looked at
   const retry = new Map(); // mint -> tries without a price yet
   let wake = null;
@@ -68,12 +69,13 @@
         lastDiscover = now;
         try {
           const found = await feed.discover(now); netOk = true;
+          diag.scanAt = Date.now(); diag.found = found.length; diag.scans += 1; diag.okAt = Date.now();
           for (const m of found) if (!st.seen[m] && !fresh.includes(m)) fresh.push(m);
           if (fresh.length > 60) fresh.splice(0, fresh.length - 60);
         } catch (e) {
           // keep going: open positions still need their stop/trail checks
           errCount += 1;
-          lastErr = (e && e.name === "AbortError") ? "zaman aşımı" : (e && e.message) || "ağ hatası";
+          lastErr = errText(e);
         }
       }
       const open = st.positions.map((p) => p.mint);
@@ -81,7 +83,7 @@
       const newOnes = st.status === "live" ? fresh.splice(0, 20) : [];
       const ids = [...new Set([...open, ...watching, ...newOnes])];
       if (ids.length) {
-        const q = await feed.quote(ids, now); netOk = true;
+        const q = await feed.quote(ids, now); netOk = true; diag.okAt = Date.now();
         for (const m of open) if (q[m]) { const r = E.onPrice(st, m, q[m].price, now); if (r) toast(r); }
         for (const m of newOnes) if (!q[m]) { const n = (retry.get(m) || 0) + 1; if (n <= 3) { retry.set(m, n); fresh.push(m); } else retry.delete(m); }
         if (retry.size > 500) retry.clear();
@@ -101,13 +103,21 @@
       if (netOk) { lastErr = ""; errCount = 0; }
     } catch (e) {
       errCount += 1;
-      lastErr = (e && e.name === "AbortError") ? "zaman aşımı" : (e && e.message) || "ağ hatası";
+      lastErr = errText(e);
     } finally {
       busy = false;
       if (st.status !== "live") releaseWake();
       save();
       if (tab !== "config") paintSoon();
     }
+  }
+
+  function errText(e) {
+    if (e && e.name === "AbortError") return "zaman aşımı";
+    if (e && e.status === 429) return "çok fazla istek, biraz bekleniyor";
+    if (e && e.status) return "sunucu hatası " + e.status;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return "internet yok";
+    return "DexScreener'a ulaşılamadı";
   }
 
   function interval() { return feedMode === "demo" ? 1000 : (errCount > 3 ? 20000 : 3000); }
@@ -277,6 +287,14 @@
     return `<div class="card final"><div class="k">TÜM CONFIG · 9 SATIR</div><div class="big">$${st.cfg.budget} → <span class="${sm.pnl >= 0 ? "pos" : "neg"}">${money(sm.equity)}</span></div><div class="x">${sm.mult.toFixed(2)}×</div><div class="sub">9 satır · 5 koltuk · ${st.stats.scanned} token · ${st.stats.bought} alım · ${sm.wins} kâr / ${sm.losses} zarar · paper</div></div>`;
   }
 
+  function statusLine() {
+    if (st.status !== "live") return "";
+    const ago = (t) => t ? Math.max(0, Math.round((Date.now() - t) / 1000)) + " sn önce" : "henüz yok";
+    const bad = !!lastErr;
+    const src = feedMode === "demo" ? "demo veri" : (bad ? "VERİ YOK: " + esc(lastErr) : (diag.okAt ? "DexScreener bağlı" : "bağlanıyor…"));
+    return `<div class="card status ${bad ? "bad" : ""}"><span class="sdot"></span><div><b>${src}</b><span>Son tarama ${ago(diag.scanAt)} · son taramada ${diag.found} coin · ${diag.scans} tarama · ${st.stats.scanned} coin incelendi</span></div></div>`;
+  }
+
   function warnings() {
     const w = [];
     if (lastErr) w.push(`<p class="note warn">Veri alınamadı (${esc(lastErr)}). Tekrar deneniyor…</p>`);
@@ -287,7 +305,7 @@
   }
 
   function renderHome() {
-    return header() + controls() + finalCard() + cfgCard() + chart() + statsRow() + tokCard() + seatsCard() + warnings() +
+    return header() + controls() + statusLine() + finalCard() + cfgCard() + chart() + statsRow() + tokCard() + seatsCard() + warnings() +
       (st.positions.length ? `<div class="sec-h"><h2>Açık pozisyonlar <span class="muted" style="font-size:12px;font-weight:500">${st.positions.length}/${st.cfg.max_open}</span></h2><span>canlı fiyat</span></div>` + openList() : "") +
       `<div class="sec-h"><h2>Bu gece kapananlar <span class="muted" style="font-size:12px;font-weight:500">${st.closed.length} işlem</span></h2><span>paper · SIM</span></div>` + closedList(12) +
       (st.closed.length ? `<p class="note">Sonuçlar kayma ve ücret dahil (her yönde %${(st.cfg.slip * 100).toFixed(1).replace(".", ",")}). Bu yüzden ${E.tp(st.cfg.stop * 100)} stop genelde ${E.tp((st.cfg.stop - 2 * st.cfg.slip) * 100)} civarında kapanır; hızlı düşüşte daha kötü olabilir.</p>` : "");
