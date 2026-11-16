@@ -7,6 +7,20 @@
     ready: false,
     adsAvailable: false,
     _sdk: null,
+    sdkMuted: false,
+    _muteListeners: [],
+    onMuteChange(f) { P._muteListeners.push(f); },
+    // Saved progress: CrazyGames Data Module on CrazyGames (same API as localStorage), localStorage elsewhere.
+    storage: {
+      get(k) {
+        try { if (P._sdk && P._sdk.data) { const v = P._sdk.data.getItem(k); if (v != null) return v; } } catch (e) {}
+        try { return localStorage.getItem(k); } catch (e) { return null; }
+      },
+      set(k, v) {
+        try { if (P._sdk && P._sdk.data) P._sdk.data.setItem(k, String(v)); } catch (e) {}
+        try { localStorage.setItem(k, String(v)); } catch (e) {}
+      },
+    },
     async init() {
       const C = window.CrazyGames && window.CrazyGames.SDK;
       if (!C) return;
@@ -14,6 +28,12 @@
         await C.init();
         if (C.environment === "disabled") return;
         P._sdk = C; P.name = "crazygames"; P.adsAvailable = true; P.ready = true;
+        // follow the CrazyGames site's mute setting
+        try {
+          const read = (s) => { P.sdkMuted = !!(s && s.muteAudio); P._muteListeners.forEach((f) => { try { f(P.sdkMuted); } catch (e) {} }); };
+          if (C.game && C.game.settings) read(C.game.settings);
+          if (C.game && C.game.addSettingsChangeListener) C.game.addSettingsChangeListener(read);
+        } catch (e) {}
       } catch (e) { /* SDK failed: play without ads */ }
     },
     gameplayStart() { try { P._sdk && P._sdk.game.gameplayStart(); } catch (e) {} },

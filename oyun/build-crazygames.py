@@ -1,28 +1,37 @@
-"""Build the CrazyGames upload: yorunge-crazygames.zip
+"""Build the CrazyGames upload as ONE file: index.html with all game code inside.
 
-Same game, plus the CrazyGames SDK; no service worker, manifest or install prompt
-(portals host the files themselves). Usage: python3 build-crazygames.py OUTPUT_DIR
+CrazyGames does not accept zip archives, and uploading folders from a phone is awkward,
+so everything (i18n, platform adapter, game) is inlined. The CrazyGames SDK stays external.
+No service worker, manifest, icons or install prompt (the portal hosts the game).
+Usage: python3 build-crazygames.py OUTPUT_DIR   -> OUTPUT_DIR/crazygames/index.html
 """
-import os, sys, zipfile
+import os, re, sys
 
 here = os.path.dirname(os.path.abspath(__file__))
-out_dir = sys.argv[1] if len(sys.argv) > 1 else here
+out_dir = os.path.join(sys.argv[1] if len(sys.argv) > 1 else here, "crazygames")
+os.makedirs(out_dir, exist_ok=True)
 html = open(os.path.join(here, "index.html"), encoding="utf-8").read()
 
-sdk = '<script>window.__FORCE_DEFAULT_EN = true;</script>\n  <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>\n  '
-assert '<script src="i18n.js' in html
-html = html.replace('<script src="i18n.js', sdk + '<script src="i18n.js', 1)
-html = html.replace('  <link rel="manifest" href="manifest.json">\n', '', 1)
-start = html.index('  <script>\n    if ("serviceWorker" in navigator')
-end = html.index('</script>', start) + len('</script>\n')
-html = html[:start] + html[end:]
-assert "serviceWorker" not in html and "manifest.json" not in html
+def inline(name):
+    code = open(os.path.join(here, name), encoding="utf-8").read()
+    assert "</script" not in code.lower(), name
+    return "<script>\n" + code + "\n</script>"
 
-path = os.path.join(out_dir, "orbit-dash-crazygames.zip")
-with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
-    z.writestr("index.html", html)
-    for f in ["game.js", "platform.js", "i18n.js"]:
-        z.write(os.path.join(here, f), f)
-    for f in sorted(os.listdir(os.path.join(here, "icons"))):
-        z.write(os.path.join(here, "icons", f), "icons/" + f)
-print(path)
+# drop PWA bits
+html = html.replace('  <link rel="manifest" href="manifest.json">\n', "", 1)
+html = re.sub(r'  <link rel="(icon|apple-touch-icon)"[^>]*>\n', "", html)
+start = html.index('  <script>\n    if ("serviceWorker" in navigator')
+end = html.index("</script>", start) + len("</script>\n")
+html = html[:start] + html[end:]
+
+# inline the game scripts, SDK first
+sdk = '<script>window.__FORCE_DEFAULT_EN = true;</script>\n  <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>\n  '
+for name in ["i18n.js", "platform.js", "game.js"]:
+    m = re.search(r'<script src="' + re.escape(name) + r'\?v=\d+"></script>', html)
+    assert m, name
+    html = html[:m.start()] + (sdk if name == "i18n.js" else "") + inline(name) + html[m.end():]
+
+assert "serviceWorker" not in html and "manifest.json" not in html and 'src="game.js' not in html
+path = os.path.join(out_dir, "index.html")
+open(path, "w", encoding="utf-8").write(html)
+print(path, len(html.encode("utf-8")), "bytes")
