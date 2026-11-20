@@ -1,0 +1,3 @@
+wallet,label,note
+# One wallet per line. Ruggers, snipers, bundlers you have seen. The scanner fails any token
+# whose dev or top-10 holder is on this list. Lines starting with # are ignored.

@@ -1,0 +1,4 @@
+time,token,ca,curve_phase,narrative_age_min,entry_mcap,exit_mcap,size_sol,pnl_sol,reason_in,reason_out,rule_broken,rule
+2026-11-16T14:05,EXAMPLE1,CA_HERE,mid,25,40000,80000,0.4,0.2,narrative early + clean holders,2x take 50%,no,
+2026-11-16T23:40,EXAMPLE2,CA_HERE,late,140,120000,70000,0.6,-0.25,FOMO after +300%,stop -35%,yes,top10>25%
+2026-11-17T01:30,EXAMPLE3,CA_HERE,early,10,15000,9000,0.8,-0.32,revenge after loss,panic,yes,after 1AM
